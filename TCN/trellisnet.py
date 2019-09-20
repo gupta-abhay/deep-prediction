@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from trellisUtils import weight_norm, VariationalDropout, VariationalHidDropout
+from .utils import weight_norm, VariationalDropout, VariationalHidDropout
 
 
 class WeightShareConv1d(nn.Module):

@@ -10,7 +10,7 @@ from torchvision import transforms, utils
 import torch.nn as nn
 
 from data import Argoverse_Data
-from model import Argo_Model, TCNModel
+from model import LSTMModel, TCNModel
 from argoverse.evaluation.eval_forecasting import get_ade, get_fde
 import matplotlib.pyplot as plt
 import argparse
@@ -249,7 +249,7 @@ if __name__ == "__main__":
     if args.model == 'LSTM':
         logger_dir = './runs/' + args.model + '/' + curr_time + '/'
         model_dir = './models/' + args.model + '/' + curr_time + '/'
-        model = Argo_Model()
+        model = LSTMModel()
     elif args.model == 'TCN':
         logger_dir = './runs/' + args.model + '/' + curr_time + '/'
         model_dir = './models/' + args.model + '/' + curr_time + '/'
