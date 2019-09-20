@@ -9,7 +9,7 @@ from TCN.utils import WeightDrop
 
 class LSTMModel(nn.Module):
     def __init__(self,):
-        super(Argo_Model,self).__init__()
+        super(LSTMModel,self).__init__()
         self.encoder_lstm=nn.LSTMCell(input_size=2,hidden_size=64)
         self.embedding_pos=nn.Linear(64,2)
         self.decoder_lstm=nn.LSTMCell(input_size=64,hidden_size=64)
