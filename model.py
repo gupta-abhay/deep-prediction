@@ -3,11 +3,11 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 import torch.nn as nn
 from TCN.tcn import TemporalConvNetwork, TimeDistributedLayer
-#from TCN.trellisnet import TrellisNet
-#from TCN.trellisUtils import WeightDrop
+from TCN.trellisnet import TrellisNet
+from TCN.utils import WeightDrop
 
 
-class Argo_Model(nn.Module):
+class LSTMModel(nn.Module):
     def __init__(self,):
         super(Argo_Model,self).__init__()
         self.encoder_lstm=nn.LSTMCell(input_size=2,hidden_size=64)
@@ -49,7 +49,7 @@ class TCNModel(nn.Module):
 # Trellis Network Model
 class TrellisNetModel(nn.Module):
     def __init__(self):
-        raise NotImplementedError
+        super(TrellisNetModel, self).__init__()
 
     def forward(self, inputs, hidden):
         raise NotImplementedError
