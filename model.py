@@ -56,3 +56,30 @@ class TrellisNetModel(nn.Module):
 
     def init_hidden(self, bsz):
         raise NotImplementedError
+
+
+class Social_Model(nn.Module):
+    def __init__(self):
+        super(Social_Model,self).__init__()
+        self.agent_encoder=nn.LSTM(input_size=2,hidden_size=64,batch_first=True)
+        self.neighbour_encoder=nn.LSTM(input_size=2,hidden_size=64,batch_first=True)
+        self.decoder_lstm=nn.LSTMCell(input_size=128,hidden_size=128)
+
+    def forward(self,input_dict):
+        agent_traj=input_dict['agent_traj']
+        neighbour_traj=input_dict['neighbour_traj_train']
+        agent_embedding=self.agent_encoder(agent_traj)[0] [:,-1,:]
+        neighbour_embedding=[]
+        for batch_index in len(neighbour_traj):
+            curr_neighbours_traj=neighbour_traj[batch_index]
+            out=self.neighbour_encoder(curr_neighbours_traj)[0][:,-1,:]
+            out=torch.mean(out,dim=0)
+            neighbour_embedding.append(out)
+        neighbour_embedding=torch.stack(neighbour_embedding,dim=0)
+        self.h=torch.stack([agent_embedding,neighbour_embedding],dim=1)
+        self.c=torch.zeros(h.shape)
+        for _ in range(30):
+            self.h,self.c=self.decoder_lstm(self.h,(self.h,self.c))
+            out.append(self.embedding_pos(self.h))
+        pred_traj=torch.stack(out,dim=1)
+        return pred_traj

@@ -9,7 +9,19 @@ Feed ground truth of major trajectories point.
 Center lines.
 
 '''
-
+def collate_traj(list_data):
+    train_agent=[]
+    gt_agent=[]
+    neighbour=[]
+    for data in list_data:
+        train_agent.append(data['train_agent'])
+        gt_agent.append(data['gt_agent'])
+        neighbour.append(data['neighbour'])
+    # train_agent=torch.stack(train_agent,dim=0)
+    # gt_agent=torch.stack(gt_agent,dim=0)
+    # return train_agent,gt_agent
+    # return {'train_agent': torch.stack(train_agent,dim=0),'gt_agent': torch.stack(gt_agent,dim=0)}
+    return {'train_agent': torch.stack(train_agent,dim=0),'gt_agent': torch.stack(gt_agent) , 'neighbour':neighbour} 
 class Argoverse_Data(Dataset):
     def __init__(self,root_dir='argoverse-data/forecasting_sample/data',social=False,train_seq_size=20):
         super(Argoverse_Data,self).__init__()
@@ -73,9 +85,8 @@ class Argoverse_Data(Dataset):
             trajectory=np.matmul(R,trajectory)
             trajectory=torch.tensor(trajectory)
             trajectory=trajectory.permute(1,0)
-            normalized_neighbour_trajectories.append({'trajectory':trajectory})
-
-        return agent_trajectory[0:self.train_seq_size], agent_trajectory[self.train_seq_size:],normalized_neighbour_trajectories 
+            normalized_neighbour_trajectories.append(trajectory)
+        return agent_trajectory[0:self.train_seq_size], agent_trajectory[self.train_seq_size:],torch.stack(normalized_neighbour_trajectories,dim=0) 
         
 
     def __getitem__(self,index):

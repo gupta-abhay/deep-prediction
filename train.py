@@ -10,7 +10,7 @@ from torchvision import transforms, utils
 import torch.nn as nn
 
 from data import Argoverse_Data
-from model import LSTMModel, TCNModel
+from model import LSTMModel, TCNModel, Social_Model
 from argoverse.evaluation.eval_forecasting import get_ade, get_fde
 import matplotlib.pyplot as plt
 import argparse
@@ -19,27 +19,6 @@ from time import localtime, strftime
 from logger import TensorLogger
 import numpy as np
 import os
-
-def data_visualization(dataloader,social=False):
-    for i_batch, traj_dict in enumerate(dataloader):
-        input_traj=traj_dict['train_agent']
-        gt_traj=traj_dict['gt_agent']
-        
-        plt.grid(True)
-        plt.plot(input_traj[0,:,0].numpy(),input_traj[0,:,1].numpy(),'g-o',gt_traj[0,:,0].numpy(),gt_traj[0,:,1].numpy(),'r-o')
-
-        if social:         
-            neighbour_traj=traj_dict['neighbour']
-            for index in range(len(neighbour_traj)):
-                print(f"Shape of neighbour trajectory {index} is ",neighbour_traj[index]['trajectory'].shape)
-
-        plt.show(block=False)
-        
-        plt.pause(5)
-        plt.clf()
-        if i_batch==5:
-            exit()
-
 
 class Trainer():
     def __init__(self,model,cuda,parallel,optimizer,train_loader,val_loader,test_loader,loss_fn,num_epochs,writer,args,modeldir):
@@ -255,6 +234,10 @@ if __name__ == "__main__":
         model_dir = './models/' + args.model + '/' + curr_time + '/'
         channel_sizes = [args.nhid] * args.levels
         model = TCNModel(args.nhid, args.opsize, channel_sizes, args.ksize, args.dropout, 128)
+    elif args.model == 'SOCIAL':
+        logger_dir = './runs/' + args.model + '/' + curr_time + '/'
+        model_dir = './models/' + args.model + '/' + curr_time + '/'
+        model = Social_Model()
     
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
@@ -262,10 +245,11 @@ if __name__ == "__main__":
     tbLogger = TensorLogger(_logdir=logger_dir)
     optimizer = torch.optim.Adam(model.parameters(), lr = args.lr)
     
+    social=True
     # Load data module
-    argoverse_train=Argoverse_Data('data/train/data/')
-    argoverse_val=Argoverse_Data('data/val/data')
-    argoverse_test = Argoverse_Data('data/test_obs/data')
+    argoverse_train=Argoverse_Data('data/train/data/',social=True)
+    argoverse_val=Argoverse_Data('data/val/data',social=True)
+    argoverse_test = Argoverse_Data('data/test_obs/data',social=True)
 
     train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
                         shuffle=True, num_workers=2)
@@ -276,7 +260,9 @@ if __name__ == "__main__":
 
     # train model and losses
     loss_fn=nn.MSELoss()
-    _cuda = True
-    _parallel = True
-    trainer=Trainer(model=model,cuda=_cuda,parallel=_parallel,optimizer=optimizer,train_loader=train_loader,val_loader=val_loader,test_loader=test_loader,loss_fn=loss_fn,num_epochs=args.epochs,writer=tbLogger,args=args,modeldir=model_dir)
+    # _cuda = a
+    print("CUDA is ",args.cuda)
+    print("Model is ",args.model)
+    _parallel = False
+    trainer=Trainer(model=model,cuda=args.cuda,parallel=_parallel,optimizer=optimizer,train_loader=train_loader,val_loader=val_loader,test_loader=test_loader,loss_fn=loss_fn,num_epochs=args.epochs,writer=tbLogger,args=args,modeldir=model_dir)
     trainer.train()
