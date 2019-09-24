@@ -86,7 +86,11 @@ class Argoverse_Data(Dataset):
             trajectory=torch.tensor(trajectory)
             trajectory=trajectory.permute(1,0)
             normalized_neighbour_trajectories.append(trajectory.float())
-        return agent_trajectory[0:self.train_seq_size].float(), agent_trajectory[self.train_seq_size:].float(),torch.stack(normalized_neighbour_trajectories,dim=0) 
+        if len(normalized_neighbour_trajectories)!= 0:
+            normalized_neighbour_trajectories=torch.stack(normalized_neighbour_trajectories,dim=0)
+        else:
+            normalized_neighbour_trajectories=torch.Tensor()
+        return agent_trajectory[0:self.train_seq_size].float(), agent_trajectory[self.train_seq_size:].float(),normalized_neighbour_trajectories 
         
 
     def __getitem__(self,index):

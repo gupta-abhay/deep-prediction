@@ -109,9 +109,11 @@ class ArgoverseForecastingLoader:
         neighbours_traj=[]
         for track_id in track_ids:
             traj=self.traj_with_track_id(track_id)
+            # print(traj)
             if traj is not None:
                 neighbours_traj.append(traj)
         # import pdb; pdb.set_trace()
+        # print("Size of neighbours trajectiry is",len(neighbours_traj))
         return neighbours_traj
 
     @property
