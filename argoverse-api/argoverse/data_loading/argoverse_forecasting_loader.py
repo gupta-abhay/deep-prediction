@@ -80,28 +80,37 @@ class ArgoverseForecastingLoader:
         
         time_stamp_traj=self.seq_df[self.seq_df["TRACK_ID"] == track_id]["TIMESTAMP"].tolist()
         index_traj=[time_to_index[x] for x in time_stamp_traj]
-        agent_x = self.seq_df[self.seq_df["TRACK_ID"] == track_id]["X"]
-        agent_y = self.seq_df[self.seq_df["TRACK_ID"] == track_id]["Y"]
 
-        agent_traj=np.array([[np.nan]*2]*50)
-        # import pdb; pdb.set_trace()
-        agent_traj[index_traj,0]=agent_x
-        agent_traj[index_traj,1]=agent_y
-        
-        # print(f"The shape of neighbour trajectory for {track_id} is", agent_traj.shape)
-        # print(f"Start index: {start_index}. End index: {end_index}")
-        # if (len(agent_x) != end_index-start_index+1):
-        #     import pdb; pdb.set_trace()
 
-        #     assert (len(agent_x)==end_index-start_index+1),"Gap between the track indexes"
-        # import pdb; pdb.set_trace()
-        return {'trajectory':agent_traj}
+
+        if 15 in index_traj and sum([i<20 for i in index_traj])>5:
+            agent_x = self.seq_df[self.seq_df["TRACK_ID"] == track_id]["X"]
+            agent_y = self.seq_df[self.seq_df["TRACK_ID"] == track_id]["Y"]
+
+            # agent_traj=np.array([[np.nan]*2]*50)
+            # import pdb; pdb.set_trace()
+            agent_x=np.interp(list(range(20)),index_traj,agent_x)
+            agent_y=np.interp(list(range(20)),index_traj,agent_y)
+            agent_traj = np.column_stack((agent_x, agent_y))
+            
+            # print(f"The shape of neighbour trajectory for {track_id} is", agent_traj.shape)
+            # print(f"Start index: {start_index}. End index: {end_index}")
+            # if (len(agent_x) != end_index-start_index+1):
+            #     import pdb; pdb.set_trace()
+
+            #     assert (len(agent_x)==end_index-start_index+1),"Gap between the track indexes"
+            # import pdb; pdb.set_trace()
+            return {'trajectory':agent_traj}
+        else:
+            return None
 
     def neighbour_traj(self):
         track_ids=self.track_id_list_neighbours()
         neighbours_traj=[]
         for track_id in track_ids:
-            neighbours_traj.append(self.traj_with_track_id(track_id))
+            traj=self.traj_with_track_id(track_id)
+            if traj is not None:
+                neighbours_traj.append(traj)
         # import pdb; pdb.set_trace()
         return neighbours_traj
 

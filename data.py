@@ -43,7 +43,7 @@ class Argoverse_Data(Dataset):
             direction= -1* np.sign(x*y)
             return direction*angle
         trajectory=trajectory-trajectory[0]
-        theta=rotation_angle(trajectory[20,0],trajectory[20,1])
+        theta=rotation_angle(trajectory[19,0],trajectory[19,1])
         c, s = np.cos(theta), np.sin(theta)
         R = np.array([[c,-s], [s, c]])
         trajectory=torch.tensor(trajectory)
@@ -60,7 +60,7 @@ class Argoverse_Data(Dataset):
             direction= -1* np.sign(x*y)
             return direction*angle
         trajectory_mean=agent_trajectory[0]
-        trajectory_rotation=rotation_angle(agent_trajectory[20,0],agent_trajectory[20,1])
+        trajectory_rotation=rotation_angle(agent_trajectory[19,0],agent_trajectory[19,1])
         c, s = np.cos(trajectory_rotation), np.sin(trajectory_rotation)
         R = np.array([[c,-s], [s, c]])
 
@@ -85,8 +85,8 @@ class Argoverse_Data(Dataset):
             trajectory=np.matmul(R,trajectory)
             trajectory=torch.tensor(trajectory)
             trajectory=trajectory.permute(1,0)
-            normalized_neighbour_trajectories.append(trajectory)
-        return agent_trajectory[0:self.train_seq_size], agent_trajectory[self.train_seq_size:],torch.stack(normalized_neighbour_trajectories,dim=0) 
+            normalized_neighbour_trajectories.append(trajectory.float())
+        return agent_trajectory[0:self.train_seq_size].float(), agent_trajectory[self.train_seq_size:].float(),torch.stack(normalized_neighbour_trajectories,dim=0) 
         
 
     def __getitem__(self,index):
