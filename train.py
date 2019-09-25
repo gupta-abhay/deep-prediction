@@ -62,9 +62,9 @@ class Trainer():
             if self.cuda:
                 input_traj=input_traj.cuda()
                 gr_traj=gr_traj.cuda()
-            
+            if self.args.social and self.cuda:
+                neighbour_traj=[neighbour.cuda() for neighbour in neighbour_traj]            
             if self.args.social:
-                neighbour_traj=traj_dict['neighbour']
                 pred_traj=self.model({'agent_traj':input_traj,'neighbour_traj':neighbour_traj})
             else:   
                 pred_traj=self.model(input_traj)
@@ -81,7 +81,7 @@ class Trainer():
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-        
+        print()
         return total_loss/(num_batches)
     
     
@@ -103,9 +103,9 @@ class Trainer():
             if self.cuda:
                 input_traj=input_traj.cuda()
                 gr_traj=gr_traj.cuda()
-            
+            if self.args.social and self.cuda:
+                neighbour_traj=[neighbour.cuda() for neighbour in neighbour_traj]
             if self.args.social:
-                neighbour_traj=traj_dict['neighbour']
                 pred_traj=self.model({'agent_traj':input_traj,'neighbour_traj':neighbour_traj})
             else:   
                 pred_traj=self.model(input_traj)
@@ -148,7 +148,7 @@ class Trainer():
                 self.best_1_fde = fde_one_sec_avg
                 self.best_3_ade = ade_three_sec_avg
                 self.best_3_fde = fde_three_sec_avg
-            
+        print()
         return total_loss/(num_batches), ade_one_sec/no_samples,fde_one_sec/no_samples,ade_three_sec/no_samples,fde_three_sec/no_samples
     
 
@@ -195,7 +195,7 @@ class Trainer():
             self.writer.scalar_summary('Test/3ADE', ade_three_sec_avg, i_batch+1)
             self.writer.scalar_summary('Test/1FDE', fde_one_sec_avg, i_batch+1)
             self.writer.scalar_summary('Test/3FDE', fde_three_sec_avg, i_batch+1)
-
+        print()
         return ade_one_sec/no_samples,fde_one_sec/no_samples,ade_three_sec/no_samples,fde_three_sec/no_samples
     
     

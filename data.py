@@ -26,6 +26,7 @@ class Argoverse_Data(Dataset):
     def __init__(self,root_dir='argoverse-data/forecasting_sample/data',social=False,train_seq_size=20):
         super(Argoverse_Data,self).__init__()
         self.root_dir=root_dir
+        #import pdb;pdb.set_trace()
         self.afl = ArgoverseForecastingLoader(self.root_dir)
         
         self.seq_paths=glob.glob(f"{self.root_dir}/*.csv")

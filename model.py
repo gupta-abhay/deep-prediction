@@ -78,16 +78,15 @@ class Social_Model(nn.Module):
             curr_neighbours_traj=neighbour_traj[batch_index]
             if curr_neighbours_traj.shape[0]!=0:
                 out=self.neighbour_encoder(curr_neighbours_traj)[0][:,-1,:]
-                out=torch.mean(out,dim=0)
+                out,_=torch.max(out,dim=0)
                 neighbour_embedding.append(out)
                 # import pdb; pdb.set_trace()
             else:
-                out=torch.zeros(1,64)
-                import pdb; pdb.set_trace()
+                out=torch.zeros(64).cuda()
                 neighbour_embedding.append(out)
         neighbour_embedding=torch.stack(neighbour_embedding,dim=0)
         self.h=torch.cat([agent_embedding,neighbour_embedding],dim=1)
-        self.c=torch.zeros(self.h.shape)
+        self.c=torch.zeros(self.h.shape).cuda()
         # import pdb; pdb.set_trace()
         for _ in range(30):
             self.h,self.c=self.decoder_lstm(self.h,(self.h,self.c))
