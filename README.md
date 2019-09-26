@@ -5,7 +5,7 @@ This repository contains the most recent work for the MSCV Capstone Project
 
 ## Installation
 
-Most of the work is done on Pytorch 1.2.0 (latest stable release, effective 09/19/2019) and using the [pargoverse-api](https://github.com/argoai/argoverse-api).
+Most of the work is done on Pytorch 1.2.0 (latest stable release, effective 09/19/2019) and using the [argoverse-api](https://github.com/argoai/argoverse-api).
 
 To replicate the environment, run
 
@@ -18,7 +18,7 @@ This creates the environment, which can be started using,
 conda activate deep_predict_argo
 ```
 
-Then to install the argoverse-api, follow the instructions given [here]{https://github.com/argoai/argoverse-api#installation}. We have added our own code to api to enable several missing features for our modelling.
+Then to install the argoverse-api, follow the instructions given [here](https://github.com/argoai/argoverse-api#installation). We have added our own code to api to enable several missing features for our modelling.
 
 ## Argoverse Extra Features
 

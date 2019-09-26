@@ -131,10 +131,6 @@ class Trainer():
             fde_three_sec_avg = float(fde_three_sec)/no_samples
 
             self.writer.scalar_summary('Val/AvgLoss', float(total_loss)/(i_batch+1), i_batch+1)
-            self.writer.scalar_summary('Val/1ADE', ade_one_sec_avg, i_batch+1)
-            self.writer.scalar_summary('Val/3ADE', ade_three_sec_avg, i_batch+1)
-            self.writer.scalar_summary('Val/1FDE', fde_one_sec_avg, i_batch+1)
-            self.writer.scalar_summary('Val/3FDE', fde_three_sec_avg, i_batch+1)
 
             if i_batch+1 % self.args.val_log_interval == 0:
                 print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {total_loss/(i_batch+1):.4f} \
@@ -188,22 +184,25 @@ class Trainer():
             fde_one_sec_avg = float(fde_one_sec)/no_samples
             fde_three_sec_avg = float(fde_three_sec)/no_samples
 
-            self.writer.scalar_summary('Test/1ADE', ade_one_sec_avg, i_batch+1)
-            self.writer.scalar_summary('Test/3ADE', ade_three_sec_avg, i_batch+1)
-            self.writer.scalar_summary('Test/1FDE', fde_one_sec_avg, i_batch+1)
-            self.writer.scalar_summary('Test/3FDE', fde_three_sec_avg, i_batch+1)
-
         return ade_one_sec/no_samples,fde_one_sec/no_samples,ade_three_sec/no_samples,fde_three_sec/no_samples
     
     
     def train(self):
         for epoch in range(self.num_epochs):
-            avg_loss_train=self.train_epoch()
+            print ("Starting epoch {}/{}".format(epoch+1, self.num_epochs))
+            avg_loss_train = self.train_epoch()
+            print ("Final Training Loss {}".format(avg_loss_train))
+
             avg_loss_val,ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec = self.val_epoch(epoch)
+            print ("Final Validation Loss {}".format(avg_loss_val))
+            
+            # Tensorboard summaries
             self.writer.scalar_summary('Val/1ADE_Epoch', ade_one_sec, epoch)
             self.writer.scalar_summary('Val/3ADE_Epoch', ade_three_sec, epoch)
             self.writer.scalar_summary('Val/1FDE_Epoch', fde_one_sec, epoch)
             self.writer.scalar_summary('Val/3FDE_Epoch', fde_three_sec, epoch)
+
+            print ("Finishing epoch {}/{}".format(epoch+1, self.num_epochs))
 
 
 if __name__ == "__main__":
@@ -220,12 +219,12 @@ if __name__ == "__main__":
                         help='learning rate for optimizer (default: 0.001)')
     parser.add_argument('--clip', type=float, default=-1,
                         help='gradient clip, -1 means no clip (default: -1)')
-    parser.add_argument('--epochs', type=int, default=1,
+    parser.add_argument('--epochs', type=int, default=10,
                         help='upper epoch limit (default: 10)')
-    parser.add_argument('--ksize', type=int, default=7,
-                        help='kernel size (default: 7)')
-    parser.add_argument('--levels', type=int, default=10,
-                        help='# of levels (default: 8)')
+    parser.add_argument('--ksize', type=int, default=3,
+                        help='kernel size (default: 3)')
+    parser.add_argument('--levels', type=int, default=20,
+                        help='# of levels (default: )')
     parser.add_argument('--nhid', type=int, default=20,
                         help='number of hidden units per layer (default: 20)')
     parser.add_argument('--opsize', type=int, default=30,
