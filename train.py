@@ -194,7 +194,7 @@ class Trainer():
             print ("Final Training Loss {}".format(avg_loss_train))
 
             avg_loss_val,ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec = self.val_epoch(epoch)
-            print ("Final Validation Loss {}".format(avg_loss_val))
+            print ("Final Validation Results: 1sec. ADE/FDE: {}/{};  3sec. ADE/FDE: {}/{}".format(ade_one_sec, fde_one_sec, ade_three_sec, fde_three_sec))
             
             # Tensorboard summaries
             self.writer.scalar_summary('Val/1ADE_Epoch', ade_one_sec, epoch)
