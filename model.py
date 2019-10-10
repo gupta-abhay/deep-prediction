@@ -8,15 +8,20 @@ from TCN.utils import WeightDrop
 
 
 class LSTMModel(nn.Module):
-    def __init__(self,):
+    def __init__(self,cuda=False):
         super(LSTMModel,self).__init__()
         self.encoder_lstm=nn.LSTMCell(input_size=2,hidden_size=64)
         self.embedding_pos=nn.Linear(64,2)
         self.decoder_lstm=nn.LSTMCell(input_size=64,hidden_size=64)
+        self.cuda=cuda
 
-
-    def forward(self,input_traj):
+    def forward(self,input_dict):
+        # import pdb; pdb.set_trace()
+        input_traj=input_dict['train_agent']
         self.h,self.c=(torch.zeros(input_traj.shape[0],64),torch.zeros(input_traj.shape[0],64))
+        if self.cuda:
+            self.h=self.h.cuda()
+            self.c=self.c.cuda()
         for i in range(20):
             self.h,self.c=self.encoder_lstm(input_traj[:,i,:],(self.h,self.c))
         out=[]
@@ -59,13 +64,13 @@ class TrellisNetModel(nn.Module):
 
 
 class Social_Model(nn.Module):
-    def __init__(self):
+    def __init__(self,cuda=False):
         super(Social_Model,self).__init__()
         self.agent_encoder=nn.LSTM(input_size=2,hidden_size=64,batch_first=True)
         self.neighbour_encoder=nn.LSTM(input_size=2,hidden_size=64,batch_first=True)
         self.decoder_lstm=nn.LSTMCell(input_size=128,hidden_size=128)
         self.embedding_pos=nn.Linear(128,2)
-
+        self.cuda=cuda
     def forward(self,input_dict):
         agent_traj=input_dict['agent_traj']
         neighbour_traj=input_dict['neighbour_traj']
@@ -82,11 +87,17 @@ class Social_Model(nn.Module):
                 neighbour_embedding.append(out)
                 # import pdb; pdb.set_trace()
             else:
-                out=torch.zeros(64).cuda()
+                if self.cuda:
+                    out=torch.zeros(64).cuda()
+                else:
+                    out=torch.zeros(64)
                 neighbour_embedding.append(out)
         neighbour_embedding=torch.stack(neighbour_embedding,dim=0)
         self.h=torch.cat([agent_embedding,neighbour_embedding],dim=1)
-        self.c=torch.zeros(self.h.shape).cuda()
+        if self.cuda:
+            self.c=torch.zeros(self.h.shape).cuda()
+        else:
+            self.c=torch.zeros(self.h.shape)
         # import pdb; pdb.set_trace()
         for _ in range(30):
             self.h,self.c=self.decoder_lstm(self.h,(self.h,self.c))
