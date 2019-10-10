@@ -23,14 +23,14 @@ import os
 import threading
 
 class Trainer():
-    def __init__(self,model,cuda,parallel,optimizer,train_loader,\
+    def __init__(self,model,use_cuda,parallel,optimizer,train_loader,\
         val_loader,test_loader,loss_fn,num_epochs,writer,args,modeldir,testdir):
         self.model=model
         self.test_model=model
         self.test_path = testdir
-        self.cuda=cuda
+        self.use_cuda=use_cuda
         self.parallel = parallel
-        if self.cuda:
+        if self.use_cuda:
             self.model=self.model.cuda()
         if self.parallel:
             self.model = nn.DataParallel(self.model)
@@ -62,6 +62,8 @@ class Trainer():
             # continue
             pred_traj=self.model(traj_dict)
             gt_traj=traj_dict['gt_agent']
+            if self.use_cuda:
+                gt_traj=gt_traj.cuda()
             loss=self.loss_fn(pred_traj,gt_traj)
             total_loss=total_loss+loss.data
             avg_loss = float(total_loss)/(i_batch+1)
@@ -84,6 +86,8 @@ class Trainer():
         for i_batch,traj_dict in enumerate(self.val_loader):
             pred_traj=self.model(traj_dict)
             gt_traj=traj_dict['gt_agent']
+            if self.use_cuda:
+                gt_traj=gt_traj.cuda()
             loss=self.loss_fn(pred_traj,gt_traj)
             total_loss=total_loss+loss.data
             batch_samples=gt_traj.shape[0]           
@@ -208,7 +212,7 @@ if __name__ == "__main__":
     if args.model == 'LSTM':
         logger_dir = './runs/' + args.model + '/' + curr_time + '/'
         model_dir = './models/' + args.model + '/' + curr_time + '/'
-        model = LSTMModel()
+        model = LSTMModel(cuda=True)
     elif args.model == 'TCN':
         logger_dir = './runs/' + args.model + '/' + curr_time + '/'
         model_dir = './models/' + args.model + '/' + curr_time + '/'
@@ -217,7 +221,7 @@ if __name__ == "__main__":
     elif args.model == 'SOCIAL':
         logger_dir = './runs/' + args.model + '/' + curr_time + '/'
         model_dir = './models/' + args.model + '/' + curr_time + '/'
-        model = Social_Model()
+        model = Social_Model(cuda=True)
     
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
@@ -233,9 +237,9 @@ if __name__ == "__main__":
     # Load data module
     
     if args.social:
-        argoverse_train=Argoverse_Social_Data('data/train/data/')
-        argoverse_val=Argoverse_Social_Data('data/val/data')
-        argoverse_test = Argoverse_Social_Data('data/test_obs/data',test=True)
+        argoverse_train=Argoverse_Social_Data('data/train/data/',cuda=args.cuda)
+        argoverse_val=Argoverse_Social_Data('data/val/data',cuda=args.cuda)
+        argoverse_test = Argoverse_Social_Data('data/test_obs/data',cuda=args.cuda,test=True)
         train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
                         shuffle=True, num_workers=2,collate_fn=collate_traj_social)
         val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
@@ -243,12 +247,12 @@ if __name__ == "__main__":
         test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
                         shuffle=True, num_workers=2,collate_fn=collate_traj_social_test)
     else:
-        argoverse_train=Argoverse_Data('data/train/data/')
-        argoverse_val=Argoverse_Data('data/val/data')
-        argoverse_test = Argoverse_Data('data/test_obs/data',test=True)
-        # argoverse_train=Argoverse_Data('data/forecasting_sample/data/')
-        # argoverse_val=Argoverse_Data('data/forecasting_sample/data')
-        # argoverse_test = Argoverse_Data('data/forecasting_sample/data',test=True)
+        argoverse_train=Argoverse_Data('data/train/data/',cuda=args.cuda)
+        argoverse_val=Argoverse_Data('data/val/data',cuda=args.cuda)
+        argoverse_test = Argoverse_Data('data/test_obs/data',cuda=args.cuda,test=True)
+        #argoverse_train=Argoverse_Data('data/forecasting_sample/data/')
+        #argoverse_val=Argoverse_Data('data/forecasting_sample/data')
+        #argoverse_test = Argoverse_Data('data/forecasting_sample/data',test=True)
         train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
                             shuffle=True, num_workers=2)
         val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
@@ -259,7 +263,7 @@ if __name__ == "__main__":
     loss_fn=nn.MSELoss()
 
     _parallel = False
-    trainer=Trainer(model=model,cuda=args.cuda,parallel=_parallel,optimizer=optimizer,\
+    trainer=Trainer(model=model,use_cuda=args.cuda,parallel=_parallel,optimizer=optimizer,\
         train_loader=train_loader,val_loader=val_loader,test_loader=test_loader,loss_fn=loss_fn,\
             num_epochs=args.epochs,writer=tbLogger,args=args,modeldir=model_dir,testdir=test_dir)
     trainer.train()

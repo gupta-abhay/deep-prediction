@@ -13,13 +13,14 @@ class LSTMModel(nn.Module):
         self.encoder_lstm=nn.LSTMCell(input_size=2,hidden_size=64)
         self.embedding_pos=nn.Linear(64,2)
         self.decoder_lstm=nn.LSTMCell(input_size=64,hidden_size=64)
-        self.cuda=cuda
+        self.use_cuda=cuda
 
     def forward(self,input_dict):
         # import pdb; pdb.set_trace()
         input_traj=input_dict['train_agent']
         self.h,self.c=(torch.zeros(input_traj.shape[0],64),torch.zeros(input_traj.shape[0],64))
-        if self.cuda:
+        if self.use_cuda:
+            input_traj=input_traj.cuda()
             self.h=self.h.cuda()
             self.c=self.c.cuda()
         for i in range(20):
@@ -70,10 +71,12 @@ class Social_Model(nn.Module):
         self.neighbour_encoder=nn.LSTM(input_size=2,hidden_size=64,batch_first=True)
         self.decoder_lstm=nn.LSTMCell(input_size=128,hidden_size=128)
         self.embedding_pos=nn.Linear(128,2)
-        self.cuda=cuda
+        self.use_cuda=cuda
     def forward(self,input_dict):
-        agent_traj=input_dict['agent_traj']
-        neighbour_traj=input_dict['neighbour_traj']
+        agent_traj=input_dict['train_agent']
+        neighbour_traj=input_dict['neighbour']
+        if self.use_cuda:
+            agent_traj=agent_traj.cuda()
         agent_embedding,_=self.agent_encoder(agent_traj)
         agent_embedding=agent_embedding[:,-1,:]
         # import pdb; pdb.set_trace()
@@ -81,20 +84,22 @@ class Social_Model(nn.Module):
         pred_traj=[]
         for batch_index in range(len(neighbour_traj)):
             curr_neighbours_traj=neighbour_traj[batch_index]
+            if self.use_cuda:
+                curr_neighbours_traj=curr_neighbours_traj.cuda()
             if curr_neighbours_traj.shape[0]!=0:
                 out=self.neighbour_encoder(curr_neighbours_traj)[0][:,-1,:]
                 out,_=torch.max(out,dim=0)
                 neighbour_embedding.append(out)
                 # import pdb; pdb.set_trace()
             else:
-                if self.cuda:
+                if self.use_cuda:
                     out=torch.zeros(64).cuda()
                 else:
                     out=torch.zeros(64)
                 neighbour_embedding.append(out)
         neighbour_embedding=torch.stack(neighbour_embedding,dim=0)
         self.h=torch.cat([agent_embedding,neighbour_embedding],dim=1)
-        if self.cuda:
+        if self.use_cuda:
             self.c=torch.zeros(self.h.shape).cuda()
         else:
             self.c=torch.zeros(self.h.shape)

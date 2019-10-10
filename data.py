@@ -40,10 +40,11 @@ class Argoverse_Data(Dataset):
         self.seq_paths=glob.glob(f"{self.root_dir}/*.csv")
         # import pdb; pdb.set_trace()
         self.train_seq_size=train_seq_size
-        self.cuda=cuda
+        self.use_cuda=cuda
         self.mode_test=test
 
     def __len__(self):
+        return 100
         return len(self.seq_paths)
     
     def transform(self,trajectory):
@@ -77,9 +78,16 @@ class Argoverse_Data(Dataset):
         if self.mode_test:
             agent_train_traj=self.transform(agent_traj)
             # import pdb; pdb.set_trace()
-            return {'seq_index': int(os.path.basename(self.seq_paths[index]).split('.')[0]),'train_agent':agent_train_traj}
+            seq_index=int(os.path.basename(self.seq_paths[index]).split('.')[0])
+            #if self.use_cuda:
+            #    agent_train_traj=agent_train_traj.cuda()
+            #    seq_index=seq_
+            return {'seq_index': seq_index,'train_agent':agent_train_traj}
         else:
             agent_train_traj,agent_gt_traj=self.transform(agent_traj)
+            #if self.use_cuda:
+            #    agent_train_traj=agent_train_traj.cuda()
+            #    agent_gt_traj=agent_gt_traj.cuda()
             return {'train_agent':agent_train_traj, 'gt_agent':agent_gt_traj}
 
 
@@ -113,12 +121,14 @@ class Argoverse_Social_Data(Argoverse_Data):
             trajectory=trajectory.permute(1,0)
             trajectory=np.matmul(R,trajectory)
             trajectory=torch.tensor(trajectory)
-            trajectory=trajectory.permute(1,0)
-            normalized_neighbour_trajectories.append(trajectory.float())
+            trajectory=trajectory.permute(1,0).float()
+            normalized_neighbour_trajectories.append(trajectory)
         if len(normalized_neighbour_trajectories)!= 0:
             normalized_neighbour_trajectories=torch.stack(normalized_neighbour_trajectories,dim=0)
         else:
             normalized_neighbour_trajectories=torch.Tensor()
+            #if self.use_cuda:
+            #    normalized_neighbour_trajectories=normalized_neighbou
         if self.mode_test:
             return agent_trajectory[0:self.train_seq_size].float(),normalized_neighbour_trajectories
         else:
@@ -130,6 +140,10 @@ class Argoverse_Social_Data(Argoverse_Data):
         neighbours_traj=current_loader.neighbour_traj()
         if self.mode_test:
             agent_train_traj,neighbours_traj=self.transform_social(agent_traj,neighbours_traj)
+            seq_index=int(os.path.basename(self.seq_paths[index]).split('.')[0])
+            #if self.use_cuda:
+            #    agent_train_traj=agent_train_traj.cuda()
+            #    seq_index=seq_index.cuda()
             return {'seq_index': int(os.path.basename(self.seq_paths[index]).split('.')[0]),'train_agent':agent_train_traj, 'neighbour':neighbours_traj}
         else:
             agent_train_traj,agent_gt_traj,neighbours_traj=self.transform_social(agent_traj,neighbours_traj)
