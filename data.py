@@ -44,7 +44,6 @@ class Argoverse_Data(Dataset):
         self.mode_test=test
 
     def __len__(self):
-        return 100
         return len(self.seq_paths)
     
     def transform(self,trajectory):
