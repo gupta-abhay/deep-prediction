@@ -804,6 +804,7 @@ class ArgoverseMap:
         """
 
         # Get all lane candidates within a bubble
+        # import pdb; pdb.set_trace()
         manhattan_threshold = 2.5
         curr_lane_candidates = self.get_lane_ids_in_xy_bbox(xy[-1, 0], xy[-1, 1], city_name, manhattan_threshold)
 
@@ -817,7 +818,7 @@ class ArgoverseMap:
         # Set dfs threshold
         displacement = np.sqrt((xy[0, 0] - xy[-1, 0]) ** 2 + (xy[0, 1] - xy[-1, 1]) ** 2)
         dfs_threshold = displacement * 2.0
-
+        
         # DFS to get all successor and predecessor candidates
         obs_pred_lanes: List[Sequence[int]] = []
         for lane in curr_lane_candidates:

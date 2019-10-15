@@ -73,6 +73,7 @@ class Social_Model(nn.Module):
         self.embedding_pos=nn.Linear(128,2)
         self.use_cuda=cuda
     def forward(self,input_dict):
+        # import pdb; pdb.set_trace()
         agent_traj=input_dict['train_agent']
         neighbour_traj=input_dict['neighbour']
         if self.use_cuda:

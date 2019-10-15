@@ -1,5 +1,6 @@
 from argoverse.map_representation.map_api import ArgoverseMap
 from argoverse.data_loading.argoverse_forecasting_loader import ArgoverseForecastingLoader
+from argoverse.visualization.visualize_sequences import viz_sequence
 import glob
 from torch.utils.data import Dataset, DataLoader
 import torch
@@ -91,8 +92,9 @@ class Argoverse_Data(Dataset):
 
 
 class Argoverse_Social_Data(Argoverse_Data):
-    def __init__(self,root_dir='argoverse-data/forecasting_sample/data',social=False,train_seq_size=20,cuda=False,test=False):
+    def __init__(self,root_dir='argoverse-data/forecasting_sample/data',train_seq_size=20,agent_rel=True,cuda=False,test=False):
         super(Argoverse_Social_Data,self).__init__(root_dir,train_seq_size,cuda,test)
+        self.agent_rel=agent_rel
 
     def transform_social(self,agent_trajectory,neighbour_trajectories):
         def rotation_angle(x,y):
@@ -110,17 +112,21 @@ class Argoverse_Social_Data(Argoverse_Data):
         agent_trajectory=np.matmul(R,agent_trajectory)
         agent_trajectory=torch.tensor(agent_trajectory)
         agent_trajectory=agent_trajectory.permute(1,0)
-        
+        agent_trajectory=agent_trajectory.float()
         normalized_neighbour_trajectories=[]
         # normalized_gt_neighbour_trajectories=[]
         for neighbour_trajectory in neighbour_trajectories:
-            trajectory=neighbour_trajectory['trajectory']
+            trajectory=neighbour_trajectory
             trajectory=trajectory-trajectory_mean
             trajectory=torch.tensor(trajectory)
             trajectory=trajectory.permute(1,0)
             trajectory=np.matmul(R,trajectory)
             trajectory=torch.tensor(trajectory)
             trajectory=trajectory.permute(1,0).float()
+            if self.agent_rel:
+                # import pdb; pdb.set_trace()
+                # print("The shape of trajectory and agent trajectory are ",trajectory.shape,agent_trajectory.shape)
+                trajectory=trajectory-agent_trajectory[:self.train_seq_size,:]
             normalized_neighbour_trajectories.append(trajectory)
         if len(normalized_neighbour_trajectories)!= 0:
             normalized_neighbour_trajectories=torch.stack(normalized_neighbour_trajectories,dim=0)
@@ -129,9 +135,9 @@ class Argoverse_Social_Data(Argoverse_Data):
             #if self.use_cuda:
             #    normalized_neighbour_trajectories=normalized_neighbou
         if self.mode_test:
-            return agent_trajectory[0:self.train_seq_size].float(),normalized_neighbour_trajectories
+            return agent_trajectory[0:self.train_seq_size],normalized_neighbour_trajectories
         else:
-            return agent_trajectory[0:self.train_seq_size].float(), agent_trajectory[self.train_seq_size:].float(),normalized_neighbour_trajectories 
+            return agent_trajectory[0:self.train_seq_size], agent_trajectory[self.train_seq_size:].float(),normalized_neighbour_trajectories 
 
     def __getitem__(self,index):
         current_loader = self.afl.get(self.seq_paths[index])
@@ -147,3 +153,25 @@ class Argoverse_Social_Data(Argoverse_Data):
         else:
             agent_train_traj,agent_gt_traj,neighbours_traj=self.transform_social(agent_traj,neighbours_traj)
             return {'train_agent':agent_train_traj, 'gt_agent':agent_gt_traj, 'neighbour':neighbours_traj}
+
+class Argoverse_LaneCentre_Data(Argoverse_Data):
+    def __init__(self,root_dir='argoverse-data//data',avm=None,social=False,train_seq_size=20,cuda=False,test=False):
+        super(Argoverse_LaneCentre_Data,self).__init__(root_dir,train_seq_size,cuda,test)
+        if avm is None:
+            self.avm=ArgoverseMap()
+        else:
+            self.avm=avm
+        print("Done loading map")
+    
+    def __getitem__(self,index):
+        current_loader = self.afl.get(self.seq_paths[index])
+        # import pdb; pdb.set_trace()
+        print(current_loader.current_seq)
+        viz_sequence(current_loader.seq_df, show=True)
+        agent_traj=current_loader.agent_traj
+        print(self.afl[1].city)
+        candidate_centerlines = self.avm.get_candidate_centerlines_for_traj(agent_traj, self.afl[1].city, max_search_radius=500.0,viz=True)
+        # import pdb; pdb.set_trace()
+        print(type(candidate_centerlines))
+
+

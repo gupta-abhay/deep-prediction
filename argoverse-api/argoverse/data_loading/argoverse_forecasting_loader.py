@@ -100,7 +100,7 @@ class ArgoverseForecastingLoader:
 
             #     assert (len(agent_x)==end_index-start_index+1),"Gap between the track indexes"
             # import pdb; pdb.set_trace()
-            return {'trajectory':agent_traj}
+            return agent_traj
         else:
             return None
 
@@ -112,9 +112,27 @@ class ArgoverseForecastingLoader:
             # print(traj)
             if traj is not None:
                 neighbours_traj.append(traj)
+        if len(neighbours_traj)<=1:
+            return neighbours_traj
+        
+        """
+        Experimenting with just one closest neighbour
+        """
+        closest_neighbour=neighbours_traj[0]
+        # import pdb; pdb.set_trace()
+        # print(closest_neighbour.shape)
+        for curr_neighbour in neighbours_traj:
+            norm_closest_neigh=np.linalg.norm([closest_neighbour[-1,0]-self.agent_traj[19,0],closest_neighbour[-1,1]-self.agent_traj[19,1]])
+            norm_curr_neigh=np.linalg.norm([curr_neighbour[-1,0]-self.agent_traj[19,0],curr_neighbour[-1,1]-self.agent_traj[19,1]])
+            if norm_closest_neigh>norm_curr_neigh:
+                closest_neighbour=curr_neighbour
+                # print("Closest distance of neighbour is ", norm_closest_neigh)
+        # print(closest_neighbour.shape)
+        # print("Final Closest distance of neighbour is ", norm_closest_neigh)
+        return [closest_neighbour]
         # import pdb; pdb.set_trace()
         # print("Size of neighbours trajectiry is",len(neighbours_traj))
-        return neighbours_traj
+        # return neighbours_traj
 
     @property
     def city(self) -> str:
@@ -123,13 +141,15 @@ class ArgoverseForecastingLoader:
         Returns:
             city name, i.e., either 'PIT' or 'MIA'
         """
-        if self._city_list is None:
-            self._city_list = {}
-            for seq in self.seq_list:
-                seq_df = _read_csv(seq)
-                self._city_list[str(seq)] = seq_df["CITY_NAME"].values[0]
+        # if self._city_list is None:
+        #     self._city_list = {}
+        #     for seq in self.seq_list:
+        #         seq_df = _read_csv(seq)
+        #         self._city_list[str(seq)] = seq_df["CITY_NAME"].values[0]
 
-        return self._city_list[str(self.current_seq)]
+        # seq_df=
+        return self.seq_df["CITY_NAME"].values[0]
+        # return self._city_list[str(self.current_seq)]
 
     @property
     def num_tracks(self) -> int:

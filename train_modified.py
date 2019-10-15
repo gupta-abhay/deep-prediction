@@ -9,7 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 import torch.nn as nn
 
-from data import Argoverse_Data,Argoverse_Social_Data,collate_traj_social,collate_traj_social_test
+from data import Argoverse_Data,Argoverse_Social_Data,Argoverse_LaneCentre_Data,collate_traj_social,collate_traj_social_test
 from model import LSTMModel, TCNModel, Social_Model
 from argoverse.evaluation.eval_forecasting import get_ade, get_fde
 from argoverse.evaluation.competition_util import generate_forecasting_h5
@@ -159,7 +159,7 @@ class Trainer():
             print(f"\nEpoch {epoch}: ")
             avg_loss_train=self.train_epoch()
             avg_loss_val,ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec = self.val_epoch(epoch)
-            if (epoch+1)%(self.num_epochs//3)==0 and self.best_model_updated:
+            if (epoch+1==self.num_epochs):
                 self.test_epoch()
                 self.best_model_updated=False
             # self.writer.scalar_summary('Val/1ADE_Epoch', ade_one_sec, epoch)
@@ -176,7 +176,7 @@ if __name__ == "__main__":
                         help='batch size (default: 32)')
     parser.add_argument('--cuda', action='store_false',
                         help='use CUDA (default: True)')
-    parser.add_argument('--social',action='store_true',help='use neighbour data as well. default: False')
+    # parser.add_argument('--social',action='store_true',help='use neighbour data as well. default: False')
     parser.add_argument('--dropout', type=float, default=0.2,
                         help='dropout applied to layers (default: 0.2)')
     parser.add_argument('--lr', type=float, default=0.001,
@@ -197,6 +197,8 @@ if __name__ == "__main__":
                         help='random seed (default: 1111)')
     parser.add_argument('--model', type=str, default='LSTM',
                         help='model type to execute (default: LSTM Baseline)')
+    parser.add_argument('--data', type=str, default='XY',
+                        help='type of data to use for training (default: XY, options: XY,LaneCentre,')
     parser.add_argument('--train-log-interval', type=int, default=100,
                         help='number of intervals after which to print train stats (default: 100)')
     parser.add_argument('--val-log-interval', type=int, default=500,
@@ -212,7 +214,7 @@ if __name__ == "__main__":
     if args.model == 'LSTM':
         logger_dir = './runs/' + args.model + '/' + curr_time + '/'
         model_dir = './models/' + args.model + '/' + curr_time + '/'
-        model = LSTMModel(cuda=True)
+        model = LSTMModel(cuda=args.cuda)
     elif args.model == 'TCN':
         logger_dir = './runs/' + args.model + '/' + curr_time + '/'
         model_dir = './models/' + args.model + '/' + curr_time + '/'
@@ -221,7 +223,7 @@ if __name__ == "__main__":
     elif args.model == 'SOCIAL':
         logger_dir = './runs/' + args.model + '/' + curr_time + '/'
         model_dir = './models/' + args.model + '/' + curr_time + '/'
-        model = Social_Model(cuda=True)
+        model = Social_Model(cuda=args.cuda)
     
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
@@ -233,34 +235,48 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(model.parameters(), lr = args.lr)
     print("CUDA is ",args.cuda)
     print("Model is ",args.model)
-    print("Social is", args.social)
+    print("Data is", args.data)
+    print("Num of epochs are ",args.epochs)
     # Load data module
     
-    if args.social:
+    if args.data=="social":
         argoverse_train=Argoverse_Social_Data('data/train/data/',cuda=args.cuda)
         argoverse_val=Argoverse_Social_Data('data/val/data',cuda=args.cuda)
         argoverse_test = Argoverse_Social_Data('data/test_obs/data',cuda=args.cuda,test=True)
         train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
-                        shuffle=True, num_workers=2,collate_fn=collate_traj_social)
+                        shuffle=True, num_workers=1,collate_fn=collate_traj_social)
         val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
-                        shuffle=True, num_workers=2,collate_fn=collate_traj_social)
+                        shuffle=True, num_workers=1,collate_fn=collate_traj_social)
         test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
-                        shuffle=True, num_workers=2,collate_fn=collate_traj_social_test)
-    else:
+                        shuffle=True, num_workers=1,collate_fn=collate_traj_social_test)
+    elif args.data=="lanecentre":
+        argoverse_map=ArgoverseMap()
+        argoverse_train=Argoverse_LaneCentre_Data('data/train/data/',cuda=args.cuda,avm=argoverse_map)
+        #argoverse_val=Argoverse_LaneCentre_Data('data/val/data',cuda=args.cuda,avm=argoverse_map)
+        '''argoverse_test = Argoverse_LaneCentre_Data('data/test_obs/data',cuda=args.cuda,test=True,avm=argoverse_map)
+        train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
+                        shuffle=True, num_workers=1,collate_fn=collate_traj_social)
+        val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
+                        shuffle=True, num_workers=1,collate_fn=collate_traj_social)
+        test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
+                        shuffle=True, num_workers=1,collate_fn=collate_traj_social_test)'''
+    elif args.data=="xy":
         argoverse_train=Argoverse_Data('data/train/data/',cuda=args.cuda)
         argoverse_val=Argoverse_Data('data/val/data',cuda=args.cuda)
         argoverse_test = Argoverse_Data('data/test_obs/data',cuda=args.cuda,test=True)
-        #argoverse_train=Argoverse_Data('data/forecasting_sample/data/')
-        #argoverse_val=Argoverse_Data('data/forecasting_sample/data')
-        #argoverse_test = Argoverse_Data('data/forecasting_sample/data',test=True)
         train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
                             shuffle=True, num_workers=2)
         val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
                             shuffle=True, num_workers=2)
         test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
                             shuffle=True, num_workers=2)
+    else:
+        # raise ValueError('A very specific bad thing happened')
+        raise ValueError(f"Dataset: {args.data} not present")
 
     loss_fn=nn.MSELoss()
+    # for i_batch, traj_dict in argoverse_train:
+    #     print(i_batch)
 
     _parallel = False
     trainer=Trainer(model=model,use_cuda=args.cuda,parallel=_parallel,optimizer=optimizer,\
