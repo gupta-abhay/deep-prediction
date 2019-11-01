@@ -253,13 +253,13 @@ if __name__ == "__main__":
         argoverse_map=ArgoverseMap()
         argoverse_train=Argoverse_LaneCentre_Data('data/train/data/',cuda=args.cuda,avm=argoverse_map)
         #argoverse_val=Argoverse_LaneCentre_Data('data/val/data',cuda=args.cuda,avm=argoverse_map)
-        '''argoverse_test = Argoverse_LaneCentre_Data('data/test_obs/data',cuda=args.cuda,test=True,avm=argoverse_map)
-        train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
-                        shuffle=True, num_workers=1,collate_fn=collate_traj_social)
-        val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
-                        shuffle=True, num_workers=1,collate_fn=collate_traj_social)
-        test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
-                        shuffle=True, num_workers=1,collate_fn=collate_traj_social_test)'''
+        # argoverse_test = Argoverse_LaneCentre_Data('data/test_obs/data',cuda=args.cuda,test=True,avm=argoverse_map)
+        # train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
+        #                 shuffle=True, num_workers=1,collate_fn=collate_traj_social)
+        # val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
+        #                 shuffle=True, num_workers=1,collate_fn=collate_traj_social)
+        # test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
+        #                 shuffle=True, num_workers=1,collate_fn=collate_traj_social_test)
     elif args.data=="xy":
         argoverse_train=Argoverse_Data('data/train/data/',cuda=args.cuda)
         argoverse_val=Argoverse_Data('data/val/data',cuda=args.cuda)
@@ -275,11 +275,18 @@ if __name__ == "__main__":
         raise ValueError(f"Dataset: {args.data} not present")
 
     loss_fn=nn.MSELoss()
-    # for i_batch, traj_dict in argoverse_train:
-    #     print(i_batch)
+    count=0
+    total=0
+    # import pdb; pdb.set_trace()
+    print("Argoverse train is of size", len(argoverse_train))
+    for centerlines in argoverse_train:
+        if centerlines is None:
+            count+=1
+        total+=1
+        print(f"{count}/{total} centerlines are None",end="\r")
 
-    _parallel = False
-    trainer=Trainer(model=model,use_cuda=args.cuda,parallel=_parallel,optimizer=optimizer,\
-        train_loader=train_loader,val_loader=val_loader,test_loader=test_loader,loss_fn=loss_fn,\
-            num_epochs=args.epochs,writer=tbLogger,args=args,modeldir=model_dir,testdir=test_dir)
-    trainer.train()
+    # _parallel = False
+    # trainer=Trainer(model=model,use_cuda=args.cuda,parallel=_parallel,optimizer=optimizer,\
+    #     train_loader=train_loader,val_loader=val_loader,test_loader=test_loader,loss_fn=loss_fn,\
+    #         num_epochs=args.epochs,writer=tbLogger,args=args,modeldir=model_dir,testdir=test_dir)
+    # trainer.train()

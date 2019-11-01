@@ -4,8 +4,13 @@ from argoverse.visualization.visualize_sequences import viz_sequence
 import glob
 from torch.utils.data import Dataset, DataLoader
 import torch
+import math
 import numpy as np
+from random import shuffle
 import os
+from shapely.geometry import LineString, Point
+from shapely.ops import nearest_points
+
 ''' Need better data representation as compared to just the trajectories.
 Feed ground truth of major trajectories point.
 Center lines.
@@ -39,6 +44,7 @@ class Argoverse_Data(Dataset):
         self.root_dir=root_dir
         self.afl = ArgoverseForecastingLoader(self.root_dir)
         self.seq_paths=glob.glob(f"{self.root_dir}/*.csv")
+        # shuffle(self.seq_paths)
         # import pdb; pdb.set_trace()
         self.train_seq_size=train_seq_size
         self.use_cuda=cuda
@@ -161,17 +167,56 @@ class Argoverse_LaneCentre_Data(Argoverse_Data):
             self.avm=ArgoverseMap()
         else:
             self.avm=avm
+        self.stationary_threshold=2.0
         print("Done loading map")
-    
+    def get_coordinate_from_centerline(self,line,trajectory):
+        start_dist = line.project(Point(trajectory[0, 0], trajectory[0, 1]))
+        centerline_cordinates=[]
+        for index in len(trajectory):
+            point=Point(trajectory[index,:])
+            nearest_point=nearest_points(line,point)[0]
+            end_dist = line.project(point)
+            centerline_cordinates.append([end_dist-start_dist,nearest_point.distance(point)])
+        return np.array(centerline_cordinates)
+
     def __getitem__(self,index):
         current_loader = self.afl.get(self.seq_paths[index])
         # import pdb; pdb.set_trace()
-        print(current_loader.current_seq)
-        viz_sequence(current_loader.seq_df, show=True)
+        # print(current_loader.current_seq)
+        # viz_sequence(current_loader.seq_df, show=True)
         agent_traj=current_loader.agent_traj
-        print(self.afl[1].city)
-        candidate_centerlines = self.avm.get_candidate_centerlines_for_traj(agent_traj, self.afl[1].city, max_search_radius=500.0,viz=True)
-        # import pdb; pdb.set_trace()
-        print(type(candidate_centerlines))
+        if self.mode_test:
+            # agent_gt_traj=agent_traj[self.train_seq_size:,]
+            agent_train_traj=agent_traj[:self.train_seq_size,:]
+        else:
+            agent_gt_traj=agent_traj[self.train_seq_size:,]
+            agent_train_traj=agent_traj[:self.train_seq_size,:]
+
+        candidate_centerlines = self.avm.get_candidate_centerlines_for_traj(agent_train_traj, current_loader.city,viz=False)
+        best_centerline=LineString(candidate_centerlines[0])
+        best_distance=math.inf
+        if math.sqrt((agent_train_traj[0, 0] - agent_train_traj[-1, 0]) ** 2 + (agent_train_traj[0, 1] - agent_train_traj[-1, 1]) ** 2) < self.stationary_threshold:
+            stationary = True
+            ## Find the nearest centerline
+            final_point=Point(agent_train_traj[-1])
+            for centerlines in candidate_centerlines:
+                line=LineString(centerlines)
+                nearest_point=nearest_points(line,final_point)[0]
+                if final_point.distance(nearest_point)>best_distance:
+                    best_distance=final_point.distance(nearest_point)
+                    best_centerline=line
+        else:
+            ## Find the cenerline most traveled on 
+            stationary = False
+            start_point=Point(agent_train_traj[0])
+            final_point=Point(agent_train_traj[-1])
+            best_distance=math.inf
+            for centerlines in candidate_centerlines:
+                start_dist = line.project(start_point)
+                end_dist = line.project(final_point)
+                if end_dist-start_dist>best_distance:
+                    best_centerline = LineString(centerlines)
+        coordinate_centerline=self.get_coordinate_from_centerline(best_centerline,agent_train_traj)
+        return coordinate_centerline,agent_gt_traj
 
 
