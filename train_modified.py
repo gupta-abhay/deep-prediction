@@ -69,13 +69,13 @@ class Trainer():
             # gt_traj=traj_dict['gt_unnorm_agent']
             # print("Norm outside",torch.norm(pred_traj-gt_traj))
             # import pdb; pdb.set_trace()
-            loss=self.loss_fn(pred_traj,gt_traj)
-            print(f"Training Iter {i_batch+1}/{num_batches} Avg Loss {loss.data:.4f}",end="\r")
-            total_loss=total_loss+loss.data
-            avg_loss = float(total_loss)/(i_batch+1)
+            
             
             if self.use_cuda:
                 gt_traj=gt_traj.cuda()
+
+            loss=self.loss_fn(pred_traj,gt_traj)
+            print(f"Training Iter {i_batch+1}/{num_batches} Avg Loss {loss.data:.4f}",end="\r")
             loss=self.loss_fn(pred_traj,gt_traj)
             total_loss=total_loss+loss.data
             avg_loss = float(total_loss)/(i_batch+1)
