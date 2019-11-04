@@ -281,11 +281,11 @@ if __name__ == "__main__":
         argoverse_val=Argoverse_Data('data/val/data',cuda=args.cuda)
         argoverse_test = Argoverse_Data('data/test_obs/data',cuda=args.cuda,test=True)
         train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
-                            shuffle=False, num_workers=1)
+                            shuffle=False, num_workers=4)
         val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
-                            shuffle=False, num_workers=1)
+                            shuffle=False, num_workers=4)
         test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
-                            shuffle=False, num_workers=1)
+                            shuffle=False, num_workers=4)
     else:
         # raise ValueError('A very specific bad thing happened')
         raise ValueError(f"Dataset: {args.data} not present")
@@ -294,7 +294,9 @@ if __name__ == "__main__":
     count=0
     total=0
 
-    print("Argoverse train is of size", len(argoverse_train))
+    print("Argoverse train dataloder is of size", len(train_loader.batch_sampler))
+    print("Argoverse val dataloader is of size", len(val_loader.batch_sampler))
+    print("Argoverse test dataloader is of size", len(test_loader.batch_sampler))
     # for centerlines in argoverse_train:
     #     if centerlines is None:
     #         count+=1
