@@ -21,6 +21,7 @@ def _read_csv(path: Path, *args: Any, **kwargs: Any) -> pd.DataFrame:
     Returns:
         pandas DataFrame containing the loaded csv
     """
+    # print(path)
     return pd.read_csv(path, *args, **kwargs)
 
 

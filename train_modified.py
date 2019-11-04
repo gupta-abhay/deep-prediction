@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import argparse
 import warnings
 from time import localtime, strftime
-from logger import TensorLogger
+# from logtger import TensorLogger
 import numpy as np
 import os
 import threading
@@ -62,6 +62,18 @@ class Trainer():
             # continue
             pred_traj=self.model(traj_dict)
             gt_traj=traj_dict['gt_agent']
+            # pred_traj=traj_dict['gt_agent']
+            # import pdb; pdb.set_trace()
+            # pred_traj=self.train_loader.dataset.inverse_transform(pred_traj,traj_dict['rotation'],traj_dict['translation'])
+            # pred_traj=self.train_loader.dataset.inverse_transform(pred_traj,traj_dict['rotation'],traj_dict['translation'])
+            # gt_traj=traj_dict['gt_unnorm_agent']
+            # print("Norm outside",torch.norm(pred_traj-gt_traj))
+            # import pdb; pdb.set_trace()
+            loss=self.loss_fn(pred_traj,gt_traj)
+            print(f"Training Iter {i_batch+1}/{num_batches} Avg Loss {loss.data:.4f}",end="\r")
+            total_loss=total_loss+loss.data
+            avg_loss = float(total_loss)/(i_batch+1)
+            
             if self.use_cuda:
                 gt_traj=gt_traj.cuda()
             loss=self.loss_fn(pred_traj,gt_traj)
@@ -85,9 +97,11 @@ class Trainer():
         
         for i_batch,traj_dict in enumerate(self.val_loader):
             pred_traj=self.model(traj_dict)
-            gt_traj=traj_dict['gt_agent']
+            pred_traj=self.val_loader.dataset.inverse_transform(pred_traj,traj_dict['rotation'],traj_dict['translation'])
+            gt_traj=traj_dict['gt_unnorm_agent']
             if self.use_cuda:
                 gt_traj=gt_traj.cuda()
+            
             loss=self.loss_fn(pred_traj,gt_traj)
             total_loss=total_loss+loss.data
             batch_samples=gt_traj.shape[0]           
@@ -146,6 +160,8 @@ class Trainer():
             seq_index=traj_dict['seq_index']
             # import pdb; pdb.set_trace()
             pred_traj=self.model(traj_dict)
+            pred_traj=self.test_loader.dataset.inverse_transform(pred_traj,traj_dict['rotation'],traj_dict['translation'])
+
             output_all.update({seq_index[index]:pred_traj[index].detach().repeat(9,1,1) for index in range(pred_traj.shape[0])})
             print(f"Test Iter {i_batch+1}/{num_batches}",end="\r")
         print()
@@ -231,7 +247,7 @@ if __name__ == "__main__":
     if not os.path.exists(test_dir):
         os.makedirs(test_dir)
 
-    tbLogger = TensorLogger(_logdir=logger_dir)
+    # tbLogger = TensorLogger(_logdir=logger_dir)
     optimizer = torch.optim.Adam(model.parameters(), lr = args.lr)
     print("CUDA is ",args.cuda)
     print("Model is ",args.model)
@@ -260,16 +276,16 @@ if __name__ == "__main__":
         #                 shuffle=True, num_workers=1,collate_fn=collate_traj_social)
         # test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
         #                 shuffle=True, num_workers=1,collate_fn=collate_traj_social_test)
-    elif args.data=="xy":
+    elif args.data=="XY":
         argoverse_train=Argoverse_Data('data/train/data/',cuda=args.cuda)
         argoverse_val=Argoverse_Data('data/val/data',cuda=args.cuda)
         argoverse_test = Argoverse_Data('data/test_obs/data',cuda=args.cuda,test=True)
         train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
-                            shuffle=True, num_workers=2)
+                            shuffle=False, num_workers=1)
         val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
-                            shuffle=True, num_workers=2)
+                            shuffle=False, num_workers=1)
         test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
-                            shuffle=True, num_workers=2)
+                            shuffle=False, num_workers=1)
     else:
         # raise ValueError('A very specific bad thing happened')
         raise ValueError(f"Dataset: {args.data} not present")
@@ -277,16 +293,16 @@ if __name__ == "__main__":
     loss_fn=nn.MSELoss()
     count=0
     total=0
-    # import pdb; pdb.set_trace()
-    print("Argoverse train is of size", len(argoverse_train))
-    for centerlines in argoverse_train:
-        if centerlines is None:
-            count+=1
-        total+=1
-        print(f"{count}/{total} centerlines are None",end="\r")
 
-    # _parallel = False
-    # trainer=Trainer(model=model,use_cuda=args.cuda,parallel=_parallel,optimizer=optimizer,\
-    #     train_loader=train_loader,val_loader=val_loader,test_loader=test_loader,loss_fn=loss_fn,\
-    #         num_epochs=args.epochs,writer=tbLogger,args=args,modeldir=model_dir,testdir=test_dir)
-    # trainer.train()
+    print("Argoverse train is of size", len(argoverse_train))
+    # for centerlines in argoverse_train:
+    #     if centerlines is None:
+    #         count+=1
+    #     total+=1
+    #     print(f"{count}/{total} centerlines are None",end="\r")
+
+    _parallel = False
+    trainer=Trainer(model=model,use_cuda=args.cuda,parallel=_parallel,optimizer=optimizer,\
+        train_loader=train_loader,val_loader=val_loader,test_loader=test_loader,loss_fn=loss_fn,\
+            num_epochs=args.epochs,writer=None,args=args,modeldir=model_dir,testdir=test_dir)
+    trainer.train()

@@ -31,6 +31,14 @@ class LSTMModel(nn.Module):
             out.append(self.embedding_pos(self.h))
         pred_traj=torch.stack(out,dim=1)
         return pred_traj
+    # def inverse_transform(self,pred_traj,inv_R,inv_t):
+    #     shape_tensor=pred_traj.shape
+    #     out1=torch.matmul(inv_R,pred_traj.reshape(-1,2).transpose(1,0)).transpose(1,0).reshape(shape_tensor[0],shape_tensor[1],shape_tensor[2])
+    #     out2= out1 + inv_t.reshape(1,1,2)
+    #     return out2
+        # torch.matmul(R,pred_traj.reshape(-1,2).transpose(1,0)).transpose(1,0).reshape(32,30,-1).shape
+        # pass
+        # pred_traj=np.matmul(inv_R,pred
 
 
 # TCN Model
