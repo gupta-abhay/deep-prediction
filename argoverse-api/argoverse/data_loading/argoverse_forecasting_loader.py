@@ -64,13 +64,14 @@ class ArgoverseForecastingLoader:
         Returns:
             city name, i.e., either 'PIT' or 'MIA'
         """
-        if self._city_list is None:
-            self._city_list = {}
-            for seq in self.seq_list:
-                seq_df = _read_csv(seq)
-                self._city_list[str(seq)] = seq_df["CITY_NAME"].values[0]
+        # if self._city_list is None:
+        #     self._city_list = {}
+        #     for seq in self.seq_list:
+        #         seq_df = _read_csv(seq)
+        #         self._city_list[str(seq)] = seq_df["CITY_NAME"].values[0]
 
-        return self._city_list[str(self.current_seq)]
+        # return self._city_list[str(self.current_seq)]
+        return self.seq_df["CITY_NAME"].values[0]
 
     @property
     def num_tracks(self) -> int:
