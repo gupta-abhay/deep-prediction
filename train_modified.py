@@ -5,11 +5,13 @@ from argoverse.visualization.visualize_sequences import viz_sequence
 from statistics import mean
 import glob
 import torch
+# torch.multiprocessing.set_sharing_strategy('file_system')
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 import torch.nn as nn
 
-from data import Argoverse_Data,Argoverse_Social_Data,Argoverse_LaneCentre_Data,collate_traj_social,collate_traj_social_test
+from data import Argoverse_Data,Argoverse_Social_Data,Argoverse_LaneCentre_Data,\
+                collate_traj_social,collate_traj_social_test,collate_traj_lanecentre
 from model import LSTMModel, TCNModel, Social_Model
 from argoverse.evaluation.eval_forecasting import get_ade, get_fde
 from argoverse.evaluation.competition_util import generate_forecasting_h5
@@ -21,17 +23,23 @@ from time import localtime, strftime
 import numpy as np
 import os
 import threading
+import copy
+import resource
+rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
 class Trainer():
     def __init__(self,model,use_cuda,parallel,optimizer,train_loader,\
         val_loader,test_loader,loss_fn,num_epochs,writer,args,modeldir,testdir):
         self.model=model
-        self.test_model=model
+        self.test_model=copy.deepcopy(model)
         self.test_path = testdir
+        
         self.use_cuda=use_cuda
         self.parallel = parallel
         if self.use_cuda:
             self.model=self.model.cuda()
+            self.test_model=self.test_model.cuda()
         if self.parallel:
             self.model = nn.DataParallel(self.model)
         
@@ -50,7 +58,22 @@ class Trainer():
         self.writer = writer
         self.args = args
         self.model_dir = modeldir
-
+        # self.model_dir="./models/LSTM/20191104171311/"
+        # self.test_path="./test/LSTM/20191104171311/"
+    # def inverse_transform_rotation_translation(self,trajectory,R,t):
+    #     out=torch.matmul(R.permute(0,2,1),trajectory.permute(0,2,1)).permute(0,2,1)
+    #     out=out-t.reshape(t.shape[0],1,2)
+    #     return out
+    def check_normalization(self):
+        for i_batch,traj_dict in enumerate(self.train_loader):
+            pred_traj=traj_dict['gt_agent']
+            pred_traj=self.train_loader.dataset.inverse_transform(pred_traj,traj_dict)
+            gt_traj=traj_dict['gt_unnorm_agent']
+            if self.use_cuda:
+                pred_traj=pred_traj.cuda()
+                gt_traj=gt_traj.cuda()
+            loss=self.loss_fn(pred_traj,gt_traj)
+            print(f"Batch: {i_batch}, Loss: {loss.data}")
 
     def train_epoch(self):
         total_loss=0
@@ -58,24 +81,10 @@ class Trainer():
         self.model.train()
         no_samples=0
         for i_batch,traj_dict in enumerate(self.train_loader):
-            # import pdb; pdb.set_trace()
-            # continue
             pred_traj=self.model(traj_dict)
             gt_traj=traj_dict['gt_agent']
-            # pred_traj=traj_dict['gt_agent']
-            # import pdb; pdb.set_trace()
-            # pred_traj=self.train_loader.dataset.inverse_transform(pred_traj,traj_dict['rotation'],traj_dict['translation'])
-            # pred_traj=self.train_loader.dataset.inverse_transform(pred_traj,traj_dict['rotation'],traj_dict['translation'])
-            # gt_traj=traj_dict['gt_unnorm_agent']
-            # print("Norm outside",torch.norm(pred_traj-gt_traj))
-            # import pdb; pdb.set_trace()
-            
-            
             if self.use_cuda:
                 gt_traj=gt_traj.cuda()
-
-            loss=self.loss_fn(pred_traj,gt_traj)
-            print(f"Training Iter {i_batch+1}/{num_batches} Avg Loss {loss.data:.4f}",end="\r")
             loss=self.loss_fn(pred_traj,gt_traj)
             total_loss=total_loss+loss.data
             avg_loss = float(total_loss)/(i_batch+1)
@@ -97,11 +106,15 @@ class Trainer():
         
         for i_batch,traj_dict in enumerate(self.val_loader):
             pred_traj=self.model(traj_dict)
-            pred_traj=self.val_loader.dataset.inverse_transform(pred_traj,traj_dict['rotation'],traj_dict['translation'])
+            pred_traj=self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
             gt_traj=traj_dict['gt_unnorm_agent']
+            # R=traj_dict['rotation']
+            # t=traj_dict['translation']
             if self.use_cuda:
                 gt_traj=gt_traj.cuda()
-            
+                # R=R.cuda()
+                # t=t.cuda()
+
             loss=self.loss_fn(pred_traj,gt_traj)
             total_loss=total_loss+loss.data
             batch_samples=gt_traj.shape[0]           
@@ -130,7 +143,8 @@ class Trainer():
 
             _filename = self.model_dir + 'best-model.pt'
 
-            if ade_one_sec_avg < self.best_1_ade and ade_three_sec_avg < self.best_3_ade and fde_one_sec_avg < self.best_1_fde and fde_three_sec_avg < self.best_3_fde:
+            # if ade_one_sec_avg < self.best_1_ade and ade_three_sec_avg < self.best_3_ade and fde_one_sec_avg < self.best_1_fde and fde_three_sec_avg < self.best_3_fde:
+            if ade_three_sec_avg < self.best_3_ade and fde_three_sec_avg < self.best_3_fde:    
                 torch.save({
                     'epoch': epoch,
                     'model_state_dict': model.state_dict(),
@@ -158,16 +172,51 @@ class Trainer():
         output_all = {}
         for i_batch,traj_dict in enumerate(self.test_loader):
             seq_index=traj_dict['seq_index']
-            # import pdb; pdb.set_trace()
-            pred_traj=self.model(traj_dict)
-            pred_traj=self.test_loader.dataset.inverse_transform(pred_traj,traj_dict['rotation'],traj_dict['translation'])
-
+            # R=traj_dict['rotation']
+            # t=traj_dict['translation']
+            # if self.use_cuda:
+            #     R=R.cuda()
+            #     t=t.cuda()
+            pred_traj=self.test_model(traj_dict)
+            pred_traj=self.test_loader.dataset.inverse_transform(pred_traj,traj_dict)
+            if self.use_cuda:
+                pred_traj=pred_traj.cpu()
             output_all.update({seq_index[index]:pred_traj[index].detach().repeat(9,1,1) for index in range(pred_traj.shape[0])})
             print(f"Test Iter {i_batch+1}/{num_batches}",end="\r")
         print()
-        print("Saving the test data results")
+        print("Saving the test data results in dir",self.test_path)
         self.save_trajectory(output_all)
         
+    def save_top_errors_accuracy(self):
+        self.test_model.load_state_dict(torch.load(self.model_dir+'best-model.pt')['model_state_dict'])
+        min_loss=np.inf
+        max_loss=0
+        max_traj_ditc
+        for i_batch,traj_dict in enumerate(self.val_metric_loader):
+            pred_traj=self.model(traj_dict)
+            pred_traj=self.val_metric_loader.dataset.inverse_transform(pred_traj,traj_dict)
+            gt_traj=traj_dict['gt_unnorm_agent']
+            if self.use_cuda:
+                gt_traj=gt_traj.cuda()
+            loss=self.loss_fn(pred_traj,gt_traj)
+            if loss<min_loss:
+                min_traj_dict=traj_dict
+                min_loss=loss
+            if loss>max_loss:
+                max_traj_dict=traj_dict
+                max_loss=loss
+        
+        input_=self.val_metric_loader.dataset.inverse_transform(min_traj_dict['train_agent'],min_traj_dict)
+        output=self.val_metric_loader.dataset.inverse_transform(self.model(min_traj_dict),min_traj_dict)
+        target=min_traj_dict['gt_unnorm_agent']
+        avm=ArgoverseMap()
+        
+        centerlines=avm.get_candidate_centerlines_for_traj(input_, current_loader.city,viz=False)
+        if self.use_cuda:
+            input_=self.val_metric_loader.dataset.inverse_transform(traj_dict['train_agent'],traj_dict).cpu()
+        viz_predictions(input_=, output= pred_traj.unsqueeze(), target=gt_traj ,centerlines:,
+                        city_names: np.ndarray,idx=None, show: bool = True,
+            
 
     
     def train(self):
@@ -252,9 +301,10 @@ if __name__ == "__main__":
     print("CUDA is ",args.cuda)
     print("Model is ",args.model)
     print("Data is", args.data)
-    print("Num of epochs are ",args.epochs)
+    print("Model dir is",model_dir)
+    print(f"Training for {args.epochs} epochs")
     # Load data module
-    
+    # torch.multiprocessing.set_sharing_strategy('file_system')
     if args.data=="social":
         argoverse_train=Argoverse_Social_Data('data/train/data/',cuda=args.cuda)
         argoverse_val=Argoverse_Social_Data('data/val/data',cuda=args.cuda)
@@ -265,27 +315,29 @@ if __name__ == "__main__":
                         shuffle=True, num_workers=1,collate_fn=collate_traj_social)
         test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
                         shuffle=True, num_workers=1,collate_fn=collate_traj_social_test)
-    elif args.data=="lanecentre":
+    elif args.data=="LaneCentre":
         argoverse_map=ArgoverseMap()
         argoverse_train=Argoverse_LaneCentre_Data('data/train/data/',cuda=args.cuda,avm=argoverse_map)
-        #argoverse_val=Argoverse_LaneCentre_Data('data/val/data',cuda=args.cuda,avm=argoverse_map)
-        # argoverse_test = Argoverse_LaneCentre_Data('data/test_obs/data',cuda=args.cuda,test=True,avm=argoverse_map)
-        # train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
-        #                 shuffle=True, num_workers=1,collate_fn=collate_traj_social)
-        # val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
-        #                 shuffle=True, num_workers=1,collate_fn=collate_traj_social)
-        # test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
-        #                 shuffle=True, num_workers=1,collate_fn=collate_traj_social_test)
+        argoverse_val=Argoverse_LaneCentre_Data('data/val/data',cuda=args.cuda,avm=argoverse_map)
+        argoverse_test = Argoverse_LaneCentre_Data('data/test_obs/data',cuda=args.cuda,test=True,avm=argoverse_map)
+        train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
+                        shuffle=True, num_workers=10,collate_fn=collate_traj_lanecentre)
+        val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
+                        shuffle=True, num_workers=10,collate_fn=collate_traj_lanecentre)
+        test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
+                        shuffle=True, num_workers=10,collate_fn=collate_traj_lanecentre)
     elif args.data=="XY":
         argoverse_train=Argoverse_Data('data/train/data/',cuda=args.cuda)
         argoverse_val=Argoverse_Data('data/val/data',cuda=args.cuda)
         argoverse_test = Argoverse_Data('data/test_obs/data',cuda=args.cuda,test=True)
         train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
-                            shuffle=False, num_workers=4)
+                            shuffle=True, num_workers=10)
         val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
-                            shuffle=False, num_workers=4)
+                            shuffle=True, num_workers=10)
+        val_metric_loader = DataLoader(argoverse_val, batch_size=1,
+                            shuffle=True, num_workers=1)
         test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
-                            shuffle=False, num_workers=4)
+                            shuffle=False, num_workers=10)
     else:
         # raise ValueError('A very specific bad thing happened')
         raise ValueError(f"Dataset: {args.data} not present")

@@ -1,6 +1,7 @@
 from argoverse.map_representation.map_api import ArgoverseMap
 from argoverse.data_loading.argoverse_forecasting_loader import ArgoverseForecastingLoader
 from argoverse.visualization.visualize_sequences import viz_sequence
+from argoverse.utils.centerline_utils import get_nt_distance,get_oracle_from_candidate_centerlines,get_xy_from_nt_seq
 import glob
 from torch.utils.data import Dataset, DataLoader
 import torch
@@ -15,6 +16,30 @@ from shapely.ops import nearest_points
 Feed ground truth of major trajectories point.
 Center lines.
 '''
+def collate_traj_lanecentre(list_data):
+    train_agent=[]
+    gt_agent=[]
+    centerline=[]
+    dict_collate={}
+    dict_input=list_data[0]
+    for key in dict_input.keys():
+        v=[]
+        # print("SOlving key", key)
+        for data in list_data:
+            # print(key,data[key].shape)
+            v.append(data[key])
+        if key is 'centerline' or 'city':
+            dict_collate[key]=v
+        elif key is 'seq_index':
+            dict_collate[key]=torch.Tensor(v)
+        else:
+            dict_collate[key]=torch.stack(v,dim=0)
+        # for key in dict_collate.keys():
+    if key is not 'centerline' and key is not 'city':
+        print(f"{key} shape: ",dict_collate[key].shape)
+    return dict_collate
+    # return {'train_agent': torch.stack(train_agent,dim=0),'gt_agent': torch.stack(gt_agent) , 'neighbour':neighbour} 
+
 def collate_traj_social(list_data):
     train_agent=[]
     gt_agent=[]
@@ -81,21 +106,19 @@ class Argoverse_Data(Dataset):
             train_trajectory=trajectory+translation
             theta=rotation_angle(train_trajectory[19,0],train_trajectory[19,1])
             c, s = np.cos(theta), np.sin(theta)
-            R = torch.Tensor([[c,-s], [s, c]])
-            train_trajectory=torch.tensor(train_trajectory[:20]).float()
-            train_trajectory=train_trajectory.permute(1,0)
-            train_trajectory=torch.matmul(R,train_trajectory)
-            train_trajectory=train_trajectory.permute(1,0)
-            train_trajectory=train_trajectory
-            return train_trajectory,R,translation
+            R = torch.Tensor([[c,-s], [s, c]]).float()
+            train_trajectory=torch.tensor(train_trajectory).float()
+            train_trajectory=torch.matmul(R,train_trajectory.permute(1,0)).permute(1,0)
+
+            return train_trajectory,R,torch.Tensor(translation).float()
         else:
             old_trajectory=trajectory
             translation=-trajectory[0]
             transformed_trajectory=trajectory+translation
             theta=rotation_angle(transformed_trajectory[19,0],transformed_trajectory[19,1])
             c, s = np.cos(theta), np.sin(theta)
-            R = torch.Tensor([[c,-s], [s, c]])
-            transformed_trajectory=torch.tensor(transformed_trajectory).float() 
+            R = torch.Tensor([[c,-s], [s, c]]).float()
+            transformed_trajectory=torch.tensor(transformed_trajectory).float()
             # transformed_trajectory=transformed_trajectory.permute(1,0)
             transformed_trajectory=torch.matmul(R,transformed_trajectory.permute(1,0)).permute(1,0)
             #print(torch.norm(old_trajectory-torch.matmul(R.permute(1,0),transformed_trajectory).permute(1,0)))
@@ -104,16 +127,21 @@ class Argoverse_Data(Dataset):
             # print("Norm insided:",torch.norm(torch.Tensor(old_trajectory)-self.inverse_transform(transformed_trajectory.unsqueeze(0),R.unsqueeze(0),torch.Tensor(translation).unsqueeze(0))))
             train_trajectory=transformed_trajectory[:self.train_seq_size]
             gt_transformed_trajectory=transformed_trajectory[self.train_seq_size:]
-            actual_gt_trajectory=torch.Tensor(trajectory[self.train_seq_size:])
+            actual_gt_trajectory=torch.Tensor(trajectory[self.train_seq_size:]).float()
             # print("Norm inside 1:",torch.norm(torch.Tensor(old_trajectory)-self.inverse_transform(transformed_trajectory.unsqueeze(0),R.unsqueeze(0),torch.Tensor(translation).unsqueeze(0))))
             # print("Norm inside 2:",torch.norm(actual_gt_trajectory-self.inverse_transform(gt_transformed_trajectory.unsqueeze(0),R.unsqueeze(0),torch.Tensor(translation).unsqueeze(0))))
-            return train_trajectory,gt_transformed_trajectory,actual_gt_trajectory,R,torch.Tensor(translation)
+            return train_trajectory,gt_transformed_trajectory,actual_gt_trajectory,R,torch.Tensor(translation).float()
 
     def inverse_transform_one(self,trajectory,R,t):
         out=torch.matmul(R,trajectory.permute(1,0)).permute(1,0)
         return out+ t.reshape(1,2)
 
-    def inverse_transform(self,trajectory,R,t):
+    def inverse_transform(self,trajectory,traj_dict):
+        R=traj_dict['rotation']
+        t=traj_dict['translation']
+        if self.use_cuda:
+            R=R.cuda()
+            t=t.cuda()
         out=torch.matmul(R.permute(0,2,1),trajectory.permute(0,2,1)).permute(0,2,1)
         out= out - t.reshape(t.shape[0],1,2)
         return out
@@ -220,15 +248,25 @@ class Argoverse_LaneCentre_Data(Argoverse_Data):
             self.avm=avm
         self.stationary_threshold=2.0
         print("Done loading map")
-    def get_coordinate_from_centerline(self,line,trajectory):
-        start_dist = line.project(Point(trajectory[0, 0], trajectory[0, 1]))
-        centerline_cordinates=[]
-        for index in len(trajectory):
-            point=Point(trajectory[index,:])
-            nearest_point=nearest_points(line,point)[0]
-            end_dist = line.project(point)
-            centerline_cordinates.append([end_dist-start_dist,nearest_point.distance(point)])
-        return np.array(centerline_cordinates)
+    # def get_coordinate_from_centerline(self,line,trajectory):
+    #     centerline_cordinates=[]
+    #     for index in len(trajectory):
+    #         tang_dist,norm_dist=get_normal_and_tangential_distance_point(x=trajectory[index,0],y=trajectory[index,1],centerline=line,last= index==len(trajectory)-1)
+    #         centerline_cordinates.append([end_dist-start_dist,nearest_point.distance(point)])
+    #     return np.array(centerline_cordinates)
+    # def __len__(self):
+    #     return 100
+    #     # return len(self.seq_paths)
+    def inverse_transform(self,trajectory,traj_dict):
+        centerline=traj_dict['centerline']
+        if self.use_cuda:
+            trajectory=trajectory.cpu()
+        out=get_xy_from_nt_seq(nt_seq=trajectory,centerlines=centerline)
+        out=torch.Tensor(out).float()
+        if self.use_cuda:
+            out=out.cuda()
+        return out
+        # pass
 
     def __getitem__(self,index):
         current_loader = self.afl.get(self.seq_paths[index])
@@ -236,38 +274,59 @@ class Argoverse_LaneCentre_Data(Argoverse_Data):
         # print(current_loader.current_seq)
         # viz_sequence(current_loader.seq_df, show=True)
         agent_traj=current_loader.agent_traj
+        # print("Found trajectory")
+        candidate_centerlines = self.avm.get_candidate_centerlines_for_traj(agent_traj, current_loader.city,viz=False)
+        # print("Found centerlines")
+        current_centerline=get_oracle_from_candidate_centerlines(candidate_centerlines,agent_traj)
+        # print("Found oracle centerline")
         if self.mode_test:
             # agent_gt_traj=agent_traj[self.train_seq_size:,]
+            seq_index=int(os.path.basename(self.seq_paths[index]).split('.')[0])
+            
             agent_train_traj=agent_traj[:self.train_seq_size,:]
-        else:
-            agent_gt_traj=agent_traj[self.train_seq_size:,]
-            agent_train_traj=agent_traj[:self.train_seq_size,:]
+            agent_train_traj=get_nt_distance(agent_train_traj,current_centerline)
+            agent_train_traj=torch.Tensor(agent_train_traj).float()
+            # gt_agent=self.get_coordinate_from_centerline(oracle_centerline,agent_train_traj)
+            return {'seq_index': seq_index,'train_agent':agent_train_traj,'centerline':current_centerline,'city'=current_loader.city}
 
-        candidate_centerlines = self.avm.get_candidate_centerlines_for_traj(agent_train_traj, current_loader.city,viz=False)
-        best_centerline=LineString(candidate_centerlines[0])
-        best_distance=math.inf
-        if math.sqrt((agent_train_traj[0, 0] - agent_train_traj[-1, 0]) ** 2 + (agent_train_traj[0, 1] - agent_train_traj[-1, 1]) ** 2) < self.stationary_threshold:
-            stationary = True
-            ## Find the nearest centerline
-            final_point=Point(agent_train_traj[-1])
-            for centerlines in candidate_centerlines:
-                line=LineString(centerlines)
-                nearest_point=nearest_points(line,final_point)[0]
-                if final_point.distance(nearest_point)>best_distance:
-                    best_distance=final_point.distance(nearest_point)
-                    best_centerline=line
         else:
-            ## Find the cenerline most traveled on 
-            stationary = False
-            start_point=Point(agent_train_traj[0])
-            final_point=Point(agent_train_traj[-1])
-            best_distance=math.inf
-            for centerlines in candidate_centerlines:
-                start_dist = line.project(start_point)
-                end_dist = line.project(final_point)
-                if end_dist-start_dist>best_distance:
-                    best_centerline = LineString(centerlines)
-        coordinate_centerline=self.get_coordinate_from_centerline(best_centerline,agent_train_traj)
-        return coordinate_centerline,agent_gt_traj
+            agent_train_traj=agent_traj[:self.train_seq_size,:]
+            agent_train_traj=get_nt_distance(agent_train_traj,current_centerline)
+            agent_train_traj=torch.Tensor(agent_train_traj).float()
+
+            agent_gt_traj=agent_traj[self.train_seq_size:,]
+            agent_gt_traj=get_nt_distance(agent_gt_traj,current_centerline)
+            agent_gt_traj=torch.Tensor(agent_gt_traj).float()
+
+            agent_unnorm_gt_traj=torch.Tensor(agent_traj[self.train_seq_size:,]).float()
+
+            return {'train_agent':agent_train_traj, 'gt_agent':agent_gt_traj,'gt_unnorm_agent':agent_unnorm_gt_traj,'centerline':current_centerline,'city'=current_loader.city}
+
+
+        
+        # best_centerline=LineString(candidate_centerlines[0])
+        # best_distance=math.inf
+        # if math.sqrt((agent_train_traj[0, 0] - agent_train_traj[-1, 0]) ** 2 + (agent_train_traj[0, 1] - agent_train_traj[-1, 1]) ** 2) < self.stationary_threshold:
+        #     stationary = True
+        #     ## Find the nearest centerline
+        #     final_point=Point(agent_train_traj[-1])
+        #     for centerlines in candidate_centerlines:
+        #         line=LineString(centerlines)
+        #         nearest_point=nearest_points(line,final_point)[0]
+        #         if final_point.distance(nearest_point)>best_distance:
+        #             best_distance=final_point.distance(nearest_point)
+        #             best_centerline=line
+        # else:
+        #     ## Find the cenerline most traveled on 
+        #     stationary = False
+        #     start_point=Point(agent_train_traj[0])
+        #     final_point=Point(agent_train_traj[-1])
+        #     best_distance=math.inf
+        #     for centerlines in candidate_centerlines:
+        #         start_dist = line.project(start_point)
+        #         end_dist = line.project(final_point)
+        #         if end_dist-start_dist>best_distance:
+        #             best_centerline = LineString(centerlines)
+        
 
 
