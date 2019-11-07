@@ -28,15 +28,15 @@ def collate_traj_lanecentre(list_data):
         for data in list_data:
             # print(key,data[key].shape)
             v.append(data[key])
-        if key is 'centerline' or 'city':
+        if (key is 'centerline') or (key is 'city'):
             dict_collate[key]=v
         elif key is 'seq_index':
             dict_collate[key]=torch.Tensor(v)
         else:
             dict_collate[key]=torch.stack(v,dim=0)
-        # for key in dict_collate.keys():
-    if key is not 'centerline' and key is not 'city':
-        print(f"{key} shape: ",dict_collate[key].shape)
+    # for key in dict_collate.keys():
+    #     if (key is not 'centerline') and (key is not 'city'):
+    #         print(f"{key} shape: ",dict_collate[key].shape)
     return dict_collate
     # return {'train_agent': torch.stack(train_agent,dim=0),'gt_agent': torch.stack(gt_agent) , 'neighbour':neighbour} 
 
@@ -287,7 +287,7 @@ class Argoverse_LaneCentre_Data(Argoverse_Data):
             agent_train_traj=get_nt_distance(agent_train_traj,current_centerline)
             agent_train_traj=torch.Tensor(agent_train_traj).float()
             # gt_agent=self.get_coordinate_from_centerline(oracle_centerline,agent_train_traj)
-            return {'seq_index': seq_index,'train_agent':agent_train_traj,'centerline':current_centerline,'city'=current_loader.city}
+            return {'seq_index': seq_index,'train_agent':agent_train_traj,'centerline':current_centerline,'city':current_loader.city}
 
         else:
             agent_train_traj=agent_traj[:self.train_seq_size,:]
@@ -300,7 +300,7 @@ class Argoverse_LaneCentre_Data(Argoverse_Data):
 
             agent_unnorm_gt_traj=torch.Tensor(agent_traj[self.train_seq_size:,]).float()
 
-            return {'train_agent':agent_train_traj, 'gt_agent':agent_gt_traj,'gt_unnorm_agent':agent_unnorm_gt_traj,'centerline':current_centerline,'city'=current_loader.city}
+            return {'train_agent':agent_train_traj, 'gt_agent':agent_gt_traj,'gt_unnorm_agent':agent_unnorm_gt_traj,'centerline':current_centerline,'city':current_loader.city}
 
 
         

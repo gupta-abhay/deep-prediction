@@ -209,13 +209,17 @@ class Trainer():
         input_=self.val_metric_loader.dataset.inverse_transform(min_traj_dict['train_agent'],min_traj_dict)
         output=self.val_metric_loader.dataset.inverse_transform(self.model(min_traj_dict),min_traj_dict)
         target=min_traj_dict['gt_unnorm_agent']
+        city=min_traj_dict['city'][0]
         avm=ArgoverseMap()
         
-        centerlines=avm.get_candidate_centerlines_for_traj(input_, current_loader.city,viz=False)
+        
         if self.use_cuda:
             input_=self.val_metric_loader.dataset.inverse_transform(traj_dict['train_agent'],traj_dict).cpu()
-        viz_predictions(input_=, output= pred_traj.unsqueeze(), target=gt_traj ,centerlines:,
-                        city_names: np.ndarray,idx=None, show: bool = True,
+            output=output.cpu()
+
+        centerlines=avm.get_candidate_centerlines_for_traj(input_, city,viz=False)
+        viz_predictions(input_=, output= output.unsqueeze().numpy, target=target ,centerlines=centerlines,
+                        city_names: np.ndarray,idx=None, show: bool = True,)
             
 
     
@@ -321,11 +325,11 @@ if __name__ == "__main__":
         argoverse_val=Argoverse_LaneCentre_Data('data/val/data',cuda=args.cuda,avm=argoverse_map)
         argoverse_test = Argoverse_LaneCentre_Data('data/test_obs/data',cuda=args.cuda,test=True,avm=argoverse_map)
         train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
-                        shuffle=True, num_workers=10,collate_fn=collate_traj_lanecentre)
+                        shuffle=True, num_workers=4,collate_fn=collate_traj_lanecentre)
         val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
-                        shuffle=True, num_workers=10,collate_fn=collate_traj_lanecentre)
+                        shuffle=True, num_workers=4,collate_fn=collate_traj_lanecentre)
         test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
-                        shuffle=True, num_workers=10,collate_fn=collate_traj_lanecentre)
+                        shuffle=True, num_workers=4,collate_fn=collate_traj_lanecentre)
     elif args.data=="XY":
         argoverse_train=Argoverse_Data('data/train/data/',cuda=args.cuda)
         argoverse_val=Argoverse_Data('data/val/data',cuda=args.cuda)
