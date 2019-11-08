@@ -34,9 +34,6 @@ def collate_traj_lanecentre(list_data):
             dict_collate[key]=torch.Tensor(v)
         else:
             dict_collate[key]=torch.stack(v,dim=0)
-    # for key in dict_collate.keys():
-    #     if (key is not 'centerline') and (key is not 'city'):
-    #         print(f"{key} shape: ",dict_collate[key].shape)
     return dict_collate
     # return {'train_agent': torch.stack(train_agent,dim=0),'gt_agent': torch.stack(gt_agent) , 'neighbour':neighbour} 
 
@@ -167,13 +164,13 @@ class Argoverse_Data(Dataset):
             #if self.use_cuda:
             #    agent_train_traj=agent_train_traj.cuda()
             #    seq_index=seq_
-            return {'seq_index': seq_index,'train_agent':agent_train_traj,'rotation':R,'translation':translation}
+            return {'seq_index': seq_index,'train_agent':agent_train_traj,'rotation':R,'translation':translation,'city':current_loader.city}
         else:
             agent_train_traj,agent_gt_traj,agent_unnorm_gt_traj,R,translation=self.transform(agent_traj)
             #if self.use_cuda:
             #    agent_train_traj=agent_train_traj.cuda()
             #    agent_gt_traj=agent_gt_traj.cuda()
-            return {'train_agent':agent_train_traj, 'gt_agent':agent_gt_traj,'gt_unnorm_agent':agent_unnorm_gt_traj,'rotation':R,'translation':translation}
+            return {'train_agent':agent_train_traj, 'gt_agent':agent_gt_traj,'gt_unnorm_agent':agent_unnorm_gt_traj,'rotation':R,'translation':translation,'city':current_loader.city}
 
 
 class Argoverse_Social_Data(Argoverse_Data):

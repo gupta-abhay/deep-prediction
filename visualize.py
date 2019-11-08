@@ -132,5 +132,5 @@ def viz_predictions(
         handles, labels = plt.gca().get_legend_handles_labels()
         by_label = OrderedDict(zip(labels, handles))
         if save_path is not None:
-            if os.path.isfolder(save_path+"/worst/"):
-                plt.savefig("")
+                plt.savefig(save_path)
+        
