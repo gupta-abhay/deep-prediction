@@ -8,7 +8,7 @@ def viz_predictions(
         centerlines: np.ndarray,
         city_names: np.ndarray,
         idx=None,
-        show: bool = True,
+        save_path=None,
         avm=None
 ) -> None:
     """Visualize predicted trjectories.
@@ -131,5 +131,6 @@ def viz_predictions(
         plt.yticks([])
         handles, labels = plt.gca().get_legend_handles_labels()
         by_label = OrderedDict(zip(labels, handles))
-        if show:
-            plt.show()
+        if save_path is not None:
+            if os.path.isfolder(save_path+"/worst/"):
+                plt.savefig("")

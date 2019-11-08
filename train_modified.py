@@ -172,11 +172,6 @@ class Trainer():
         output_all = {}
         for i_batch,traj_dict in enumerate(self.test_loader):
             seq_index=traj_dict['seq_index']
-            # R=traj_dict['rotation']
-            # t=traj_dict['translation']
-            # if self.use_cuda:
-            #     R=R.cuda()
-            #     t=t.cuda()
             pred_traj=self.test_model(traj_dict)
             pred_traj=self.test_loader.dataset.inverse_transform(pred_traj,traj_dict)
             if self.use_cuda:
@@ -187,8 +182,12 @@ class Trainer():
         print("Saving the test data results in dir",self.test_path)
         self.save_trajectory(output_all)
         
-    def save_top_errors_accuracy(self):
-        self.test_model.load_state_dict(torch.load(self.model_dir+'best-model.pt')['model_state_dict'])
+    def save_top_errors_accuracy(self,model_path=None):
+        if model_path is None:
+            state_dict=torch.load(self.model_dir+'best-model.pt')['model_state_dict']
+        else:
+            state_dict=torch.load(model_path)
+        self.test_model.load_state_dict()
         min_loss=np.inf
         max_loss=0
         max_traj_ditc
@@ -210,16 +209,13 @@ class Trainer():
         output=self.val_metric_loader.dataset.inverse_transform(self.model(min_traj_dict),min_traj_dict)
         target=min_traj_dict['gt_unnorm_agent']
         city=min_traj_dict['city'][0]
-        avm=ArgoverseMap()
-        
-        
+        avm=ArgoverseMap()  
         if self.use_cuda:
-            input_=self.val_metric_loader.dataset.inverse_transform(traj_dict['train_agent'],traj_dict).cpu()
+            input_=input_.cpu()
             output=output.cpu()
-
         centerlines=avm.get_candidate_centerlines_for_traj(input_, city,viz=False)
-        viz_predictions(input_=, output= output.unsqueeze().numpy, target=target ,centerlines=centerlines,
-                        city_names: np.ndarray,idx=None, show: bool = True,)
+        viz_predictions(input_=input_.squeeze().numpy(), output= output.numpy(), target=target.numpy() ,centerlines=centerlines,
+                        city_names=city, avm=avm, save_path=self.test_path)
             
 
     
