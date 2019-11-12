@@ -244,25 +244,33 @@ class Trainer():
         self.test_model.load_state_dict(torch.load(model_dir+'best-model.pt')['model_state_dict'])
         min_loss=np.inf
         max_loss=0
+        loss_list=[]
         for i_batch,traj_dict in enumerate(self.val_metric_loader):
             pred_traj=self.model(traj_dict)
-            pred_traj=self.val_metric_loader.dataset.inverse_transform(pred_traj,traj_dict)
+            # pred_traj=self.val_metric_loader.dataset.inverse_transform(pred_traj,traj_dict)
+            pred_traj=self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
             gt_traj=traj_dict['gt_unnorm_agent']
             if self.use_cuda:
                 gt_traj=gt_traj.cuda()
-            loss=self.loss_fn(pred_traj,gt_traj)
-            if loss<min_loss:
-                min_traj_dict=traj_dict
-                min_loss=loss
-            if loss>max_loss:
-                max_traj_dict=traj_dict
-                max_loss=loss
+            loss=torch.norm(pred_traj.reshape(pred_traj.shape[0],-1),gt_traj.reshape(gt_traj.shape[0],-1),dim=1)
+            min_index,min_loss=torch.min(loss,dim=0)
+            max_index,max_loss=torch.max(loss,dim=0)
+
+            input_=self.val_loader.dataset.inverse_transform(traj_dict['train_agent'],min_traj_dict)
+            # output=self.val_loader.dataset.inverse_transform(self.model(traj_dict),min_traj_dict)
+            output=pred_traj[min_index,:,:]
+            target=traj_dict['gt_unnorm_agent']
+            city_name_min=min_traj_dict['city']
+            # loss_list=loss
+            # if loss<min_loss:
+            #     min_traj_dict=traj_dict
+            #     min_loss=loss
+            # if loss>max_loss:
+            #     max_traj_dict=traj_dict
+            #     max_loss=loss
         
         avm=ArgoverseMap()
-        input_=self.val_metric_loader.dataset.inverse_transform(min_traj_dict['train_agent'],min_traj_dict)
-        output=self.val_metric_loader.dataset.inverse_transform(self.model(min_traj_dict),min_traj_dict)
-        target=min_traj_dict['gt_unnorm_agent']
-        city_name_min=min_traj_dict['city']
+        
         high_error_path=model_dir+"/visualization/high_errors/"
         low_error_path=model_dir+"/visualization/low_errors/"
 
