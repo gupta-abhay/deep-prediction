@@ -1,5 +1,7 @@
 from argoverse.map_representation.map_api import ArgoverseMap
 # from joblib import Parallel, delayed
+from collections import OrderedDict 
+import numpy as np
 import matplotlib.pyplot as plt
 def viz_predictions(
         input_: np.ndarray,
@@ -9,7 +11,7 @@ def viz_predictions(
         city_names: np.ndarray,
         idx=None,
         save_path=None,
-        avm=None
+        avm=None,
 ) -> None:
     """Visualize predicted trjectories.
     Args:
@@ -131,6 +133,8 @@ def viz_predictions(
         plt.yticks([])
         handles, labels = plt.gca().get_legend_handles_labels()
         by_label = OrderedDict(zip(labels, handles))
-        if save_path is not None:
-                plt.savefig(save_path)
+        plt.legend()
+        # if save_path is not None:
+        plt.savefig(save_path+f"/{i}.jpg")
+        plt.close()
         
