@@ -201,9 +201,7 @@ def viz_sequence(df, name):
 
 
 if __name__ == "__main__":
-    dataset_dir = './data/forecasting_sample/data'
-    am = ArgoverseMap()
-
+    dataset_dir = sys.argv[1]
     afl = ArgoverseForecastingLoader(dataset_dir)
     
     all_files = []
