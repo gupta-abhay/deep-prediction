@@ -220,7 +220,6 @@ if __name__ == "__main__":
     # with Pool(agents) as pool:
     #     results.append(pool.apply_async(viz_sequence, all_files))
 
-
     for file in all_files:
         viz_sequence(file[0], file[1])
 
