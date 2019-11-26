@@ -208,7 +208,9 @@ if __name__ == "__main__":
     for root, dirs, files in os.walk(dataset_dir, topdown=False):
         for name in files:
             actual_name = name.split('.')[0]
-            all_files.append((afl.get(f"{dataset_dir}/{name}").seq_df, f"{dataset_dir}/{actual_name}.png"))
+            df = afl.get(f"{dataset_dir}/{name}").seq_df
+            name = f"{dataset_dir}/{actual_name}.png"
+            viz_sequence(df, name)
 
     # print (all_files)
     # agents = 4
@@ -218,8 +220,8 @@ if __name__ == "__main__":
     # with Pool(agents) as pool:
     #     results.append(pool.apply_async(viz_sequence, all_files))
 
-    for file in all_files:
-        viz_sequence(file[0], file[1])
+    # for file in all_files:
+    #     viz_sequence(file[0], file[1])
 
     # final_images = []
     # for result in results:
