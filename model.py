@@ -51,8 +51,12 @@ class TCNModel(nn.Module):
         self.tdst_output = TimeDistributedLayer(nn.Linear(20, 30), batch_first=True)
 
     
-    def forward(self, x):
-        x = self.input_embedding(x)
+    def forward(self, input_dict):
+        input_traj = input_dict['train_agent']
+        if self.use_cuda:
+            input_traj = input_traj.cuda()
+
+        x = self.input_embedding(input_traj)
         x = self.tcn(x)
         x = self.tdst_output(x)
         x = x.permute(0,2,1)
@@ -65,7 +69,19 @@ class TrellisNetModel(nn.Module):
     def __init__(self):
         super(TrellisNetModel, self).__init__()
 
-    def forward(self, inputs, hidden):
+    def forward(self, input_dict, hidden):
+        raise NotImplementedError
+
+    def init_hidden(self, bsz):
+        raise NotImplementedError
+
+
+# DEQ Model
+class DEQModel(nn.Module):
+    def __init__(self):
+        super(DEQModel, self).__init__()
+
+    def forward(self, input_dict):
         raise NotImplementedError
 
     def init_hidden(self, bsz):

@@ -1,6 +1,7 @@
-from data import Argoverse_Data,collate_traj
+from data import Argoverse_Data
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
+
 def data_visualization(dataloader,social=False):
     for i_batch, traj_dict in enumerate(dataloader):
         print(f"{i_batch} batch")
@@ -25,8 +26,9 @@ def data_visualization(dataloader,social=False):
             if i_batch==5:
                 exit()
 
+
 if __name__=="__main__":
-    social=True 
+    social=False
     argoverse_sample=Argoverse_Data('data/forecasting_sample/data/',social=social)
     if social:
         train_loader = DataLoader(argoverse_sample, batch_size=2,collate_fn=collate_traj)

@@ -1,6 +1,7 @@
 from argoverse.map_representation.map_api import ArgoverseMap
 # from joblib import Parallel, delayed
 import matplotlib.pyplot as plt
+
 def viz_predictions(
         input_: np.ndarray,
         output: np.ndarray,
@@ -9,17 +10,8 @@ def viz_predictions(
         city_names: np.ndarray,
         idx=None,
         save_path=None,
-        avm=None
-) -> None:
-    """Visualize predicted trjectories.
-    Args:
-        input_ (numpy array): Input Trajectory with shape (num_tracks x obs_len x 2)
-        output (numpy array of list): Top-k predicted trajectories, each with shape (num_tracks x pred_len x 2)
-        target (numpy array): Ground Truth Trajectory with shape (num_tracks x pred_len x 2)
-        centerlines (numpy array of list of centerlines): Centerlines (Oracle/Top-k) for each trajectory
-        city_names (numpy array): city names for each trajectory
-        show (bool): if True, show
-    """
+        avm=None):
+
     num_tracks = input_.shape[0]
     obs_len = input_.shape[1]
     pred_len = target.shape[1]
@@ -28,46 +20,46 @@ def viz_predictions(
     if avm is None:
         avm = ArgoverseMap()
     for i in range(num_tracks):
-        plt.plot(
-            input_[i, :, 0],
-            input_[i, :, 1],
-            color="#ECA154",
-            label="Observed",
-            alpha=1,
-            linewidth=3,
-            zorder=15,
-        )
-        plt.plot(
-            input_[i, -1, 0],
-            input_[i, -1, 1],
-            "o",
-            color="#ECA154",
-            label="Observed",
-            alpha=1,
-            linewidth=3,
-            zorder=15,
-            markersize=9,
-        )
-        plt.plot(
-            target[i, :, 0],
-            target[i, :, 1],
-            color="#d33e4c",
-            label="Target",
-            alpha=1,
-            linewidth=3,
-            zorder=20,
-        )
-        plt.plot(
-            target[i, -1, 0],
-            target[i, -1, 1],
-            "o",
-            color="#d33e4c",
-            label="Target",
-            alpha=1,
-            linewidth=3,
-            zorder=20,
-            markersize=9,
-        )
+        # plt.plot(
+        #     input_[i, :, 0],
+        #     input_[i, :, 1],
+        #     color="#ECA154",
+        #     label="Observed",
+        #     alpha=1,
+        #     linewidth=3,
+        #     zorder=15,
+        # )
+        # plt.plot(
+        #     input_[i, -1, 0],
+        #     input_[i, -1, 1],
+        #     "o",
+        #     color="#ECA154",
+        #     label="Observed",
+        #     alpha=1,
+        #     linewidth=3,
+        #     zorder=15,
+        #     markersize=9,
+        # )
+        # plt.plot(
+        #     target[i, :, 0],
+        #     target[i, :, 1],
+        #     color="#d33e4c",
+        #     label="Target",
+        #     alpha=1,
+        #     linewidth=3,
+        #     zorder=20,
+        # )
+        # plt.plot(
+        #     target[i, -1, 0],
+        #     target[i, -1, 1],
+        #     "o",
+        #     color="#d33e4c",
+        #     label="Target",
+        #     alpha=1,
+        #     linewidth=3,
+        #     zorder=20,
+        #     markersize=9,
+        # )
 
         for j in range(len(centerlines[i])):
             plt.plot(
@@ -117,6 +109,7 @@ def viz_predictions(
                 query_search_range_manhattan=2.5,
             )
             [avm.draw_lane(lane_id, city_names[i]) for lane_id in lane_ids]
+        
         for j in range(pred_len):
             lane_ids = avm.get_lane_ids_in_xy_bbox(
                 target[i, j, 0],

@@ -116,22 +116,17 @@ class Argoverse_Data(Dataset):
             c, s = np.cos(theta), np.sin(theta)
             R = torch.Tensor([[c,-s], [s, c]]).float()
             transformed_trajectory=torch.tensor(transformed_trajectory).float()
-            # transformed_trajectory=transformed_trajectory.permute(1,0)
             transformed_trajectory=torch.matmul(R,transformed_trajectory.permute(1,0)).permute(1,0)
-            #print(torch.norm(old_trajectory-torch.matmul(R.permute(1,0),transformed_trajectory).permute(1,0)))
-            # transformed_trajectory=transformed_trajectory.permute(1,0)
-            # print(transformed_trajectory.shape)
-            # print("Norm insided:",torch.norm(torch.Tensor(old_trajectory)-self.inverse_transform(transformed_trajectory.unsqueeze(0),R.unsqueeze(0),torch.Tensor(translation).unsqueeze(0))))
             train_trajectory=transformed_trajectory[:self.train_seq_size]
             gt_transformed_trajectory=transformed_trajectory[self.train_seq_size:]
             actual_gt_trajectory=torch.Tensor(trajectory[self.train_seq_size:]).float()
-            # print("Norm inside 1:",torch.norm(torch.Tensor(old_trajectory)-self.inverse_transform(transformed_trajectory.unsqueeze(0),R.unsqueeze(0),torch.Tensor(translation).unsqueeze(0))))
-            # print("Norm inside 2:",torch.norm(actual_gt_trajectory-self.inverse_transform(gt_transformed_trajectory.unsqueeze(0),R.unsqueeze(0),torch.Tensor(translation).unsqueeze(0))))
             return train_trajectory,gt_transformed_trajectory,actual_gt_trajectory,R,torch.Tensor(translation).float()
+
 
     def inverse_transform_one(self,trajectory,R,t):
         out=torch.matmul(R,trajectory.permute(1,0)).permute(1,0)
         return out+ t.reshape(1,2)
+
 
     def inverse_transform(self,trajectory,traj_dict):
         R=traj_dict['rotation']
@@ -142,11 +137,7 @@ class Argoverse_Data(Dataset):
         out=torch.matmul(R.permute(0,2,1),trajectory.permute(0,2,1)).permute(0,2,1)
         out= out - t.reshape(t.shape[0],1,2)
         return out
-        # import pdb; pdb.set_trace()
-        # shape_tensor=trajectory.shape
-        # out1=torch.matmul(inv_R,trajectory.reshape(-1,2).transpose(1,0)).transpose(1,0).reshape(shape_tensor[0],shape_tensor[1],shape_tensor[2])
-        # out2= out1 + inv_t.reshape(1,1,2)
-        # return out
+
 
     def __getitem__(self,index):
         '''
@@ -157,19 +148,13 @@ class Argoverse_Data(Dataset):
 
         current_loader = self.afl.get(self.seq_paths[index])
         agent_traj=current_loader.agent_traj
+        
         if self.mode_test:
             agent_train_traj,R,translation=self.transform(agent_traj)
-            # import pdb; pdb.set_trace()
             seq_index=int(os.path.basename(self.seq_paths[index]).split('.')[0])
-            #if self.use_cuda:
-            #    agent_train_traj=agent_train_traj.cuda()
-            #    seq_index=seq_
             return {'seq_index': seq_index,'train_agent':agent_train_traj,'rotation':R,'translation':translation,'city':current_loader.city}
         else:
             agent_train_traj,agent_gt_traj,agent_unnorm_gt_traj,R,translation=self.transform(agent_traj)
-            #if self.use_cuda:
-            #    agent_train_traj=agent_train_traj.cuda()
-            #    agent_gt_traj=agent_gt_traj.cuda()
             return {'train_agent':agent_train_traj, 'gt_agent':agent_gt_traj,'gt_unnorm_agent':agent_unnorm_gt_traj,'rotation':R,'translation':translation,'city':current_loader.city}
 
 
@@ -326,4 +311,24 @@ class Argoverse_LaneCentre_Data(Argoverse_Data):
         #             best_centerline = LineString(centerlines)
         
 
+
+def Argoverse_Data_withMap(Argoverse_Data):
+    def __init__(self, root_dir='', avm=None, social=False, train_seq_size=20, cuda=False, test=False):
+        super(Argoverse_Data_withMap, self).__init__(root_dir, train_seq_size, cuda, test)
+        
+        if avm is None:
+            self.avm=ArgoverseMap()
+        else:
+            self.avm=avm
+        
+        print("Done loading map")
+
+    def __getitem__(self, index):
+        current_loader = self.afl.get(self.seq_paths[index])
+        agent_traj=current_loader.agent_traj
+
+        if self.mode_test:
+            pass
+        else:
+            pass
 
