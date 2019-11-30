@@ -65,10 +65,10 @@ class TCNModel(nn.Module):
         return out
 
 
-# Trellis Network Model
-class TrellisNetModel(nn.Module):
-    def __init__(self):
-        super(TrellisNetModel, self).__init__()
+# DEQ-Trellis Model
+class DEQTrellisModel(nn.Module):
+    class __init__(self):
+        super(DEQTrellisModel, self).__init__()
 
     def forward(self, input_dict, hidden):
         raise NotImplementedError
@@ -77,10 +77,10 @@ class TrellisNetModel(nn.Module):
         raise NotImplementedError
 
 
-# DEQ Model
-class DEQModel(nn.Module):
+# DEQ-Transformer Model
+class DEQTransformerModel(nn.Module):
     def __init__(self):
-        super(DEQModel, self).__init__()
+        super(DEQTransformerModel, self).__init__()
 
     def forward(self, input_dict):
         raise NotImplementedError

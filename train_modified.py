@@ -13,6 +13,7 @@ import torch.nn as nn
 from data import Argoverse_Data,Argoverse_Social_Data,Argoverse_LaneCentre_Data,\
                 collate_traj_social,collate_traj_social_test,collate_traj_lanecentre
 from model import LSTMModel, TCNModel, Social_Model
+from vrae_model import VRAE
 from argoverse.evaluation.eval_forecasting import get_ade, get_fde
 from argoverse.evaluation.competition_util import generate_forecasting_h5
 import matplotlib.pyplot as plt
@@ -30,7 +31,7 @@ resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
 class Trainer():
     def __init__(self,model,use_cuda,parallel,optimizer,train_loader,\
-        val_loader,test_loader,loss_fn,num_epochs,writer,args,modeldir):
+        val_loader,test_loader,loss_fn,num_epochs,writer,args,modeldir,max_grad_norm=5,clip=False,model_type=None):
         self.model=model
         #self.test_model=copy.deepcopy(model)
         self.use_cuda=use_cuda
@@ -56,6 +57,10 @@ class Trainer():
         self.writer = writer
         self.args = args
         self.model_dir = modeldir
+        self.model_type = model_type
+
+        self.clip = clip
+        self.max_grad_norm = max_grad_norm
         # self.model_dir="./models/LSTM/20191104171311/"
         # self.test_path="./test/LSTM/20191104171311/"
     # def inverse_transform_rotation_translation(self,trajectory,R,t):
@@ -79,16 +84,29 @@ class Trainer():
         self.model.train()
         no_samples=0
         for i_batch,traj_dict in enumerate(self.train_loader):
-            pred_traj=self.model(traj_dict)
-            gt_traj=traj_dict['gt_agent']
-            if self.use_cuda:
-                gt_traj=gt_traj.cuda()
-            loss=self.loss_fn(pred_traj,gt_traj)
+            if self.model_type == 'VRAE':
+                pred_traj, latent_traj, latent_mean, latent_logvar = self.model(traj_dict)
+                kl_loss = -0.5 * torch.mean(1 + latent_logvar - latent_mean.pow(2) - latent_logvar.exp())
+                mse_loss=self.loss_fn(pred_traj,gt_traj)
+                loss = kl_loss + mse_loss
+            else:
+                pred_traj=self.model(traj_dict)
+                gt_traj=traj_dict['gt_agent']
+                if self.use_cuda:
+                    gt_traj=gt_traj.cuda()
+                loss=self.loss_fn(pred_traj,gt_traj)
+
+            # gt_traj=traj_dict['gt_agent']
+            # if self.use_cuda:
+            #     gt_traj=gt_traj.cuda()
+            # loss=self.loss_fn(pred_traj,gt_traj)
             total_loss=total_loss+loss.data
             avg_loss = float(total_loss)/(i_batch+1)
             print(f"Training Iter {i_batch+1}/{num_batches} Avg Loss {avg_loss:.4f}",end="\r")
             self.optimizer.zero_grad()
             loss.backward()
+            if self.clip:
+                torch.nn.utils.clip_grad_norm(self.model.parameters(), max_norm = self.max_grad_norm)
             self.optimizer.step()
         print()
         return total_loss/(num_batches)
@@ -103,13 +121,31 @@ class Trainer():
         no_samples=0
         
         for i_batch,traj_dict in enumerate(self.val_loader):
-            pred_traj=self.model(traj_dict)
-            pred_traj=self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
-            gt_traj=traj_dict['gt_unnorm_agent']
-            if self.use_cuda:
-                gt_traj=gt_traj.cuda()
+            if self.model_type == 'VRAE':
+                pred_traj, latent_traj, latent_mean, latent_logvar = self.model(traj_dict)
+                pred_traj = self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
+                gt_traj = traj_dict['gt_unnorm_agent']
+                if self.use_cuda:
+                    gt_traj=gt_traj.cuda()
+
+                kl_loss = -0.5 * torch.mean(1 + latent_logvar - latent_mean.pow(2) - latent_logvar.exp())
+                mse_loss=self.loss_fn(pred_traj,gt_traj)
+                loss = kl_loss + mse_loss
+            else:
+                pred_traj=self.model(traj_dict)
+                pred_traj=self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
+                gt_traj=traj_dict['gt_unnorm_agent']
+                if self.use_cuda:
+                    gt_traj=gt_traj.cuda()
+                loss=self.loss_fn(pred_traj,gt_traj)
+
+            # pred_traj=self.model(traj_dict)
+            # pred_traj=self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
+            # gt_traj=traj_dict['gt_unnorm_agent']
+            # if self.use_cuda:
+            #     gt_traj=gt_traj.cuda()
                 
-            loss=self.loss_fn(pred_traj,gt_traj)
+            # loss=self.loss_fn(pred_traj,gt_traj)
             total_loss=total_loss+loss.data
             batch_samples=gt_traj.shape[0]           
             
@@ -192,11 +228,23 @@ class Trainer():
         no_samples=0
         
         for i_batch,traj_dict in enumerate(self.val_loader):
-            pred_traj=self.model(traj_dict)
-            pred_traj=self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
-            gt_traj=traj_dict['gt_unnorm_agent']
-            if self.use_cuda:
-                gt_traj=gt_traj.cuda()
+            if self.model_type == 'VRAE':
+                pred_traj, latent_traj, latent_mean, latent_logvar = self.model(traj_dict)
+                pred_traj = self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
+                gt_traj = traj_dict['gt_unnorm_agent']
+                if self.use_cuda:
+                    gt_traj=gt_traj.cuda()
+
+                kl_loss = -0.5 * torch.mean(1 + latent_logvar - latent_mean.pow(2) - latent_logvar.exp())
+                mse_loss=self.loss_fn(pred_traj,gt_traj)
+                loss = kl_loss + mse_loss
+            else:
+                pred_traj=self.model(traj_dict)
+                pred_traj=self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
+                gt_traj=traj_dict['gt_unnorm_agent']
+                if self.use_cuda:
+                    gt_traj=gt_traj.cuda()
+                loss=self.loss_fn(pred_traj,gt_traj)
                 
             loss=self.loss_fn(pred_traj,gt_traj)
             total_loss=total_loss+loss.data
@@ -372,6 +420,8 @@ if __name__ == "__main__":
         model = TCNModel(args.nhid, args.opsize, channel_sizes, args.ksize, args.dropout, 128)
     elif args.model == 'SOCIAL':
         model = Social_Model(cuda=args.cuda)
+    elif args.model == 'VRAE':
+        model = VRAE(sequence_length=20, number_of_features=2)
     
     if args.mode is 'train':
         logger_dir = './runs/' + args.model + '/' + curr_time + '/'
