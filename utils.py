@@ -583,19 +583,19 @@ def get_abs_traj(
         output (numpy array): Predicted Trajectory in map frame with shape (num_tracks x pred_len x 2)
 
     """
-    obs_len = input_.shape[1]
-    pred_len = output.shape[1]
+    # obs_len = input_.shape[1]
+    # pred_len = output.shape[1]
 
-    if start_idx is None:
-        s = 0
-        e = input_.shape[0]
-    else:
-        print(f"Abs Traj Done {start_idx}/{input_.shape[0]}")
-        s = start_idx
-        e = start_idx + args.joblib_batch_size
+    # if start_idx is None:
+    #     s = 0
+    #     e = input_.shape[0]
+    # else:
+    #     print(f"Abs Traj Done {start_idx}/{input_.shape[0]}")
+    #     s = start_idx
+    #     e = start_idx + args.joblib_batch_size
 
-    input_ = input_.copy()[s:e]
-    output = output.copy()[s:e]
+    # input_ = input_.copy()[s:e]
+    # output = output.copy()[s:e]
 
     # Convert relative to absolute
     # if args.use_delta:

@@ -25,7 +25,7 @@ def viz_predictions(
     num_tracks = input_.shape[0]
     obs_len = input_.shape[1]
     pred_len = target.shape[1]
-
+    # import pdb;pdb.set_trace()
     plt.figure(0, figsize=(8, 7))
     if avm is None:
         avm = ArgoverseMap()
