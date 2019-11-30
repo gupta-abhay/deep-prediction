@@ -14,7 +14,7 @@ from data import Argoverse_Data,Argoverse_Social_Data,Argoverse_LaneCentre_Data,
                 collate_traj_social,collate_traj_social_test,collate_traj_lanecentre
 from model import LSTMModel, TCNModel, Social_Model
 from argoverse.evaluation.eval_forecasting import get_ade, get_fde
-from argoverse.evaluation.competition_util import gener ate_forecasting_h5
+from argoverse.evaluation.competition_util import generate_forecasting_h5
 import matplotlib.pyplot as plt
 import argparse
 import warnings
@@ -32,12 +32,12 @@ class Trainer():
     def __init__(self,model,use_cuda,parallel,optimizer,train_loader,\
         val_loader,test_loader,loss_fn,num_epochs,writer,args,modeldir):
         self.model=model
-        self.test_model=copy.deepcopy(model)
+        #self.test_model=copy.deepcopy(model)
         self.use_cuda=use_cuda
         self.parallel = parallel
         if self.use_cuda:
             self.model=self.model.cuda()
-            self.test_model=self.test_model.cuda()
+            #self.test_model=self.test_model.cuda()
         if self.parallel:
             self.model = nn.DataParallel(self.model)
         
@@ -305,15 +305,15 @@ class Trainer():
                 avg_loss_val,ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec = self.val_epoch(epoch)
                 if (epoch+1==self.num_epochs):
                     self.test_epoch()
-                    self.test_model(self.model_dir)
+                    #self.test_model(self.model_dir)
                 # self.writer.scalar_summary('Val/1ADE_Epoch', ade_one_sec, epoch)
                 # self.writer.scalar_summary('Val/3ADE_Epoch', ade_three_sec, epoch)
                 # self.writer.scalar_summary('Val/1FDE_Epoch', fde_one_sec, epoch)
                 # self.writer.scalar_summary('Val/3FDE_Epoch', fde_three_sec, epoch)
         elif args.mode=="validate":
             self.validate_model(self.model_dir)
-        elif args.mode=="test":
-            self.test_model(self.model_dir)
+        #elif args.mode=="test":
+            #self.test_model(self.model_dir)
 
 if __name__ == "__main__":
     warnings.filterwarnings('ignore')
@@ -325,7 +325,7 @@ if __name__ == "__main__":
                         help='use CUDA (default: True)')
     parser.add_argument('--lr', type=float, default=0.001,
                         help='learning rate for optimizer (default: 0.001)')
-    parser.add_argument('--epochs', type=int, default=1,
+    parser.add_argument('--epochs', type=int, default=10,
                         help='upper epoch limit (default: 10)')
     parser.add_argument('--model', type=str, default='LSTM',
                         help='model type to execute (default: LSTM Baseline)')
@@ -341,22 +341,22 @@ if __name__ == "__main__":
     # parser.add_argument('--test-log-interval', type=int, default=500,
     #                     help='number of intervals after which to print test stats (default: 500)')
     # parser.add_argument('--social',action='store_true',help='use neighbour data as well. default: False')
-    # parser.add_argument('--dropout', type=float, default=0.2,
-    #                     help='dropout applied to layers (default: 0.2)')
+    parser.add_argument('--dropout', type=float, default=0.2,
+                        help='dropout applied to layers (default: 0.2)')
    
-    # parser.add_argument('--clip', type=float, default=-1,
-    #                     help='gradient clip, -1 means no clip (default: -1)')
+    parser.add_argument('--clip', type=float, default=-1,
+                        help='gradient clip, -1 means no clip (default: -1)')
     
-    # parser.add_argument('--ksize', type=int, default=7,
-    #                     help='kernel size (default: 7)')
-    # parser.add_argument('--levels', type=int, default=10,
-    #                     help='# of levels (default: 8)')
-    # parser.add_argument('--nhid', type=int, default=20,
-    #                     help='number of hidden units per layer (default: 20)')
-    # parser.add_argument('--opsize', type=int, default=30,
-    #                     help='number of output units for model (default: 30)')
-    # parser.add_argument('--seed', type=int, default=1111,
-    #                     help='random seed (default: 1111)')
+    parser.add_argument('--ksize', type=int, default=3,
+                        help='kernel size (default: 3)')
+    parser.add_argument('--levels', type=int, default=10,
+                        help='# of levels (default: 8)')
+    parser.add_argument('--nhid', type=int, default=20,
+                        help='number of hidden units per layer (default: 20)')
+    parser.add_argument('--opsize', type=int, default=30,
+                        help='number of output units for model (default: 30)')
+    parser.add_argument('--seed', type=int, default=1111,
+                        help='random seed (default: 1111)')
     
     
     args = parser.parse_args()
@@ -376,6 +376,7 @@ if __name__ == "__main__":
     if args.mode is 'train':
         logger_dir = './runs/' + args.model + '/' + curr_time + '/'
         model_dir = './models/' + args.model + '/' + curr_time + '/'
+        os.makedirs(model_dir)
     else:
         logger_dir=None
         model_dir=args.model_dir

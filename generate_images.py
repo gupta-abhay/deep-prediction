@@ -197,6 +197,7 @@ def viz_sequence(df, name):
 
     plt.axis("off")
     plt.savefig(name, bbox_inches='tight')
+    plt.close()
     # return ax
 
 

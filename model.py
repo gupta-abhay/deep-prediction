@@ -43,12 +43,13 @@ class LSTMModel(nn.Module):
 
 # TCN Model
 class TCNModel(nn.Module):
-    def __init__(self, input_size, output_size, num_channels, kernel_size, dropout, embedding_size=64):
+    def __init__(self, input_size, output_size, num_channels, kernel_size, dropout, embedding_size=64, use_cuda=True):
         super(TCNModel, self).__init__()
         self.input_embedding = nn.Linear(2, embedding_size)
         self.tcn = TemporalConvNetwork(input_size, num_channels, kernel_size=kernel_size, dropout=dropout)
         self.output_embedding = nn.Linear(embedding_size, 2)
         self.tdst_output = TimeDistributedLayer(nn.Linear(20, 30), batch_first=True)
+        self.use_cuda = use_cuda
 
     
     def forward(self, input_dict):
