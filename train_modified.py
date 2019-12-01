@@ -35,7 +35,7 @@ resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
 class Trainer():
     def __init__(self,model,use_cuda,parallel,optimizer,train_loader,\
-        val_loader,test_loader,loss_fn,num_epochs,writer,args,modeldir,max_grad_norm=5,clip=False,model_type=None):
+        val_loader,test_loader,loss_fn,num_epochs,writer,args,modeldir,max_grad_norm=5,clip=False):
         self.model=model
         #self.test_model=copy.deepcopy(model)
         self.use_cuda=use_cuda
@@ -61,7 +61,7 @@ class Trainer():
         self.writer = writer
         self.args = args
         self.model_dir = modeldir
-        self.model_type = model_type
+        self.model_type = args.model_type
 
         self.clip = clip
         self.max_grad_norm = max_grad_norm
@@ -303,12 +303,9 @@ class Trainer():
                 output=output.to('cpu')
                 input_=input_.to('cpu')
             
-            print (output.type(), input_.type())
             loss=torch.norm(output.reshape(output.shape[0],-1)-gt_traj.reshape(gt_traj.shape[0],-1),dim=1)
-            print (loss.type())
             min_loss,min_index=torch.min(loss,dim=0)
             max_loss,max_index=torch.max(loss,dim=0)
-
             
             input_min_list.append(input_[min_index])
             pred_min_list.append(output[min_index])
@@ -438,6 +435,8 @@ if __name__ == "__main__":
                         help='number of output units for model (default: 30)')
     parser.add_argument('--seed', type=int, default=1111,
                         help='random seed (default: 1111)')
+    parser.add_argument('--model_type', type=str, default='none',
+                        help='model type to execute (default: none, pass VRAE for executing)')
     
     
     args = parser.parse_args()
