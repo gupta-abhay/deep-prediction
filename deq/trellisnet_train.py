@@ -32,11 +32,17 @@ from seq_models.trellisnets.deq_trellisnet import DEQTrellisNetLM
 from modules import radam
 from utils.exp_utils import create_exp_dir
 from utils.data_parallel import BalancedDataParallel
-from utils.splitcross import *
+# from utils.splitcross import *
 
 import resource
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
+
+from multiprocessing import set_start_method
+try:
+    set_start_method('spawn')
+except RuntimeError:
+    pass
 
 
 class Trainer():
@@ -490,12 +496,14 @@ if __name__ == "__main__":
                         pretrain_steps=args.pretrain_steps, dilation=args.dilation, load=args.load)
 
     if args.multi_gpu:
+        print ("in here 1")
         model = model.to(device)
         if args.gpu0_bsz >= 0:
             para_model = BalancedDataParallel(args.gpu0_bsz // args.batch_chunk, model, dim=1).to(device)   # Batch dim is dim 1
         else:
             para_model = nn.DataParallel(model, dim=1).to(device)
     else:
+        print ("in here 2")
         para_model = model.to(device)
 
     loss_fn=nn.MSELoss()
