@@ -506,8 +506,8 @@ if __name__ == "__main__":
     print("Model dir is", model_dir)
     print(f"Training for {args.epochs} epochs")
     
-    argoverse_train=Argoverse_Data('data/train/data/',cuda=args.cuda)
-    argoverse_val=Argoverse_Data('data/val/data',cuda=args.cuda)
+    argoverse_train=Argoverse_Data('../data/train/data/',cuda=args.cuda)
+    argoverse_val=Argoverse_Data('../data/val/data',cuda=args.cuda)
     train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
                         shuffle=True, num_workers=10)
     val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
