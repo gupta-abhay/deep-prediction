@@ -304,14 +304,16 @@ class DEQTrellisNetLM(nn.Module):
 
         # 1) Set up encoder (embeddings) and decoder (note: an alternative is to use the adaptive embedding; see
         #    DEQ-Transformer implementation)
-        self.encoder = nn.Embedding(n_token, ninp)
+        self.encoder = nn.Linear(n_token, ninp)
+        # self.decoder = nn.Linear(nout, n_token)
         self.decoder = nn.Linear(nout, n_token)
         self.tdst_output = TimeDistributedLayer(nn.Linear(20,30), batch_first=True)
         self.init_weights()
+        
         if tie_weights:
             if nout != ninp and self.n_experts == 0:
                 raise ValueError('When using the tied flag, nout must be equal to the embedding size')
-            self.decoder.weight = self.encoder.weight
+            # self.decoder.weight = self.encoder.weight
 
         # 2) Set up MoS, if needed
         self.n_experts = n_experts
@@ -358,9 +360,9 @@ class DEQTrellisNetLM(nn.Module):
         :param train_step: The number of training step that the current iteration is at
         :return: tuple(output, new memory), where output = tuple(DEQ output, regularized DEQ output, decoded output)
         """
-        dec_inp = dec_inp.t()
+
         bsz = dec_inp.size(0)
-        word_emb = embedded_dropout(self.encoder, dec_inp, self.emb_dropout if self.training else 0.0)
+        word_emb = self.encoder(dec_inp)
         word_emb = self.iodrop(word_emb, self.dropouti).transpose(1, 2)           # (bsz x seq_len x d_model)
 
         z1s, new_mems = self.trellisnet(word_emb, mems, f_thres=f_thres, b_thres=b_thres, 
@@ -376,12 +378,13 @@ class DEQTrellisNetLM(nn.Module):
             core_out = self.tdst_output(core_out)
             core_out = core_out.permute(0,2,1)
             decoded = decoded if self.n_experts > 0 else self.decoder(core_out)
-            return (z1s.transpose(0,1), core_out.transpose(0,1), decoded.transpose(0,1)), [new_mems.permute(2,0,1)]
+            return (z1s.transpose(0,1), core_out.transpose(0,1), decoded), [new_mems.permute(2,0,1)]
         
-        return (z1s.transpose(0,1), core_out.transpose(0,1), core_out.transpose(0,1)), [new_mems.permute(2,0,1)]
+        return (z1s.transpose(0,1), core_out.transpose(0,1), core_out), [new_mems.permute(2,0,1)]
 
     def forward(self, data, target, mems, train_step=-1, **kwargs):
-        bsz = data.size(1)
+        # print (data.shape, target.shape)
+        bsz = data.size(0)
         if not mems:
             mems = [torch.zeros(1, bsz, 2*self.h_size).to(data.device)]
         mems = mems[0]

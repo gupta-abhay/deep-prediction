@@ -442,6 +442,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     curr_time = strftime("%Y%m%d%H%M%S", localtime())
+    args.cuda = torch.cuda.is_available()
 
     # initialize model and params
     

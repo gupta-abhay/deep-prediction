@@ -62,6 +62,8 @@ class Trainer():
         self.args = args
         self.model_dir = modeldir
 
+        self.train_step = args.start_train_steps
+
     def check_normalization(self):
         for i_batch,traj_dict in enumerate(self.val_loader):
             pred_traj=traj_dict['gt_agent']
@@ -81,7 +83,7 @@ class Trainer():
         mems = []
         num_batches=len(self.train_loader.batch_sampler)
 
-        for i_batch, traj_dict in enumerate(self.train_loader.batch_sampler):
+        for i_batch, traj_dict in enumerate(self.train_loader):
             self.optimizer.zero_grad()
             if mems:
                 mems[0] = mems[0].detach()
@@ -93,19 +95,22 @@ class Trainer():
                 data = data.cuda()
                 target = target.cuda()
             
-            (_, _, pred_traj), mems = self.model(data, target, mems, train_step=train_step, f_thres=args.f_thres,
-                                    b_thres=args.b_thres, subseq_len=subseq_len, decode=False)
-            
-            print(f"Training Iter {i_batch+1}/{num_batches} Avg Loss {avg_loss:.4f}",end="\r")
+            (_, _, pred_traj), mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
+                                    b_thres=args.b_thres, subseq_len=subseq_len, decode=True)
 
+            print (pred_traj.shape, target.shape)
             loss = self.loss_fn(pred_traj, target)
             loss.backward()
             train_loss += loss.item()
 
+            avg_loss = float(train_loss) / (i_batch+1)
+            print(f"Training Iter {i_batch+1}/{num_batches} Avg Loss {avg_loss:.4f}",end="\r")
+
             torch.nn.utils.clip_grad_norm(self.params, args.clip)
             self.optimizer.step()
+            self.train_step += 1
 
-        return total_loss/num_batches
+        return train_loss/num_batches
 
     def val_epoch(self, epoch):
         subseq_len = args.subseq_len
@@ -128,17 +133,18 @@ class Trainer():
                 data = data.cuda()
                 target = target.cuda()
             
-            (_, _, pred_traj), mems = self.model(data, target, mems, train_step=train_step, f_thres=args.f_thres,
-                                    b_thres=args.b_thres, subseq_len=subseq_len, decode=False)
+            (_, _, pred_traj), mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
+                                    b_thres=args.b_thres, subseq_len=subseq_len, decode=True)
 
+            print (pred_traj.shape, target.shape)
             loss = self.loss_fn(pred_traj, target)
             val_loss += loss.item()
-            batch_samples = gt_traj.shape[0]
+            batch_samples = target.shape[0]
             
-            ade_one_sec+=sum([get_ade(pred_traj[i,:10,:],gt_traj[i,:10,:]) for i in range(batch_samples)])
-            fde_one_sec+=sum([get_fde(pred_traj[i,:10,:],gt_traj[i,:10,:]) for i in range(batch_samples)])
-            ade_three_sec+=sum([get_ade(pred_traj[i,:,:],gt_traj[i,:,:]) for i in range(batch_samples)])
-            fde_three_sec+=sum([get_fde(pred_traj[i,:,:],gt_traj[i,:,:]) for i in range(batch_samples)])
+            ade_one_sec+=sum([get_ade(pred_traj[i,:10,:],target[i,:10,:]) for i in range(batch_samples)])
+            fde_one_sec+=sum([get_fde(pred_traj[i,:10,:],target[i,:10,:]) for i in range(batch_samples)])
+            ade_three_sec+=sum([get_ade(pred_traj[i,:,:],target[i,:,:]) for i in range(batch_samples)])
+            fde_three_sec+=sum([get_fde(pred_traj[i,:,:],target[i,:,:]) for i in range(batch_samples)])
             
             no_samples+=batch_samples
             ade_one_sec_avg = float(ade_one_sec)/no_samples
@@ -146,7 +152,7 @@ class Trainer():
             fde_one_sec_avg = float(fde_one_sec)/no_samples
             fde_three_sec_avg = float(fde_three_sec)/no_samples
 
-            print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {total_loss/(i_batch+1):.4f} \
+            print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {val_loss/(i_batch+1):.4f} \
             One sec:- ADE:{ade_one_sec/(no_samples):.4f} FDE: {fde_one_sec/(no_samples):.4f}\
             Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}",end="\r")
 
@@ -157,7 +163,7 @@ class Trainer():
                     'epoch': epoch,
                     'model_state_dict': model.state_dict(),
                     'opt_state_dict': optimizer.state_dict(),
-                    'loss': total_loss/(i_batch+1)
+                    'loss': val_loss/(i_batch+1)
                 }, _filename)
 
                 self.best_1_ade = ade_one_sec_avg
@@ -167,7 +173,7 @@ class Trainer():
                 self.best_model_updated=True
         
         print()
-        return total_loss/(num_batches), ade_one_sec/no_samples,fde_one_sec/no_samples,ade_three_sec/no_samples,fde_three_sec/no_samples
+        return val_loss/(num_batches), ade_one_sec/no_samples,fde_one_sec/no_samples,ade_three_sec/no_samples,fde_three_sec/no_samples
 
     def validate_model(self, model_path):
         # total_loss=0
