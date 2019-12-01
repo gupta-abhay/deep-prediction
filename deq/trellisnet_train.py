@@ -168,10 +168,6 @@ class Trainer():
         print()
         return total_loss/(num_batches), ade_one_sec/no_samples,fde_one_sec/no_samples,ade_three_sec/no_samples,fde_three_sec/no_samples
 
-    def save_trajectory(self,output_dict,save_path):
-        generate_forecasting_h5(output_dict, save_path)
-        print("done")
-
     def validate_model(self, model_path):
         # total_loss=0
         # num_batches=len(self.val_loader.batch_sampler)
@@ -219,26 +215,6 @@ class Trainer():
         # print()
         self.save_top_errors_accuracy(self.model_dir, model_path)
         print("Saved error plots")
-
-    def test_model(self,model_dir):
-        num_batches=len(self.test_loader.batch_sampler)
-        batch_size=self.test_loader.batch_size
-        self.model.load_state_dict(torch.load(model_dir+'best-model.pt')['model_state_dict'])
-        self.model.eval()
-        no_samples=0
-        output_all = {}
-        for i_batch,traj_dict in enumerate(self.test_loader):
-            seq_index=traj_dict['seq_index']
-            pred_traj=self.model(traj_dict)
-            pred_traj=self.test_loader.dataset.inverse_transform(pred_traj,traj_dict)
-            if self.use_cuda:
-                pred_traj=pred_traj.cpu()
-            output_all.update({seq_index[index]:pred_traj[index].detach().repeat(9,1,1) for index in range(pred_traj.shape[0])})
-            print(f"Test Iter {i_batch+1}/{num_batches}",end="\r")
-        print()
-        print("Saving the test data results in dir",model_dir)
-        self.save_trajectory(output_all,model_dir)
-        # self.save_top_errors_accuracy(model_dir)
 
     def save_top_errors_accuracy(self,model_dir, model_path):
         min_loss=np.inf
@@ -360,11 +336,12 @@ class Trainer():
     def run(self):
         if args.mode=="train":
             for epoch in range(self.num_epochs):
-                print(f"\nEpoch {epoch}: ")
+                print(f"\nEpoch {epoch+1}/{self.num_epochs}: ")
                 avg_loss_train=self.train_epoch()
                 avg_loss_val,ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec = self.val_epoch(epoch)
         elif args.mode=="validate":
             self.validate_model(self.model_dir)
+    
 
 if __name__ == "__main__":
     warnings.filterwarnings('ignore')
@@ -459,13 +436,14 @@ if __name__ == "__main__":
                         help='path to load weight')
     parser.add_argument('--name', type=str, default='N/A',
                         help='name of the trial')
-        
+    parser.add_argument('--mode',type=str,default='train',help='mode: train, test ,validate')
+
         
     args = parser.parse_args()
     curr_time = strftime("%Y%m%d%H%M%S", localtime())
     if args.mode is 'train':
-        logger_dir = './runs/' + args.model + '/' + curr_time + '/'
-        model_dir = './models/' + args.model + '/' + curr_time + '/'
+        logger_dir = './runs/trellisnet' + curr_time + '/'
+        model_dir = './models/trellisnet' + curr_time + '/'
         os.makedirs(model_dir)
     else:
         logger_dir=None
@@ -486,8 +464,8 @@ if __name__ == "__main__":
 
     # args.work_dir = '{}-{}'.format(args.work_dir, args.dataset)
     # args.work_dir = os.path.join(args.work_dir, time.strftime('%Y%m%d-%H%M%S'))
-    logging = create_exp_dir(model_dir,
-        scripts_to_save=['train_trellisnet.py', 'models/trellisnets/deq_trellisnet.py'], debug=args.debug)
+    # logging = create_exp_dir(model_dir,
+    #     scripts_to_save=['train_trellisnet.py', 'models/trellisnets/deq_trellisnet.py'], debug=args.debug)
 
     # Set the random seed manually for reproducibility.
     np.random.seed(args.seed)
@@ -522,8 +500,7 @@ if __name__ == "__main__":
     optimizer = getattr(optim if args.optim != 'RAdam' else radam, args.optim)(params, lr=lr, weight_decay=args.weight_decay)
     
     print("CUDA is ",args.cuda)
-    print("Model is ",args.model)
-    print("Data is", args.data)
+    print("Model is TrellisNet-DEQ")
     print("Model dir is", model_dir)
     print(f"Training for {args.epochs} epochs")
     
