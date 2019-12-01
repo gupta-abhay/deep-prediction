@@ -265,8 +265,6 @@ class Trainer():
         self.save_top_errors_accuracy(model_dir)
 
     def save_top_errors_accuracy(self,model_dir, model_path):
-        self.model.load_state_dict(torch.load(model_path+'best-model.pt')['model_state_dict'])
-        self.model.eval()
         min_loss=np.inf
         max_loss=0
         num_images=10
@@ -287,18 +285,22 @@ class Trainer():
 
 
         print ("here")
+        self.model.load_state_dict(torch.load(model_path+'best-model.pt')['model_state_dict'])
+        self.model.eval()
         num_batches=len(self.val_loader.batch_sampler)
+
         for i_batch,traj_dict in enumerate(self.val_loader):
             print(f"Running {i_batch}/{num_batches}",end="\r")
             gt_traj=traj_dict['gt_unnorm_agent']
             train_traj=traj_dict['train_agent']
             if self.use_cuda:
                 train_traj=train_traj.cuda()
-            input_=self.val_loader.dataset.inverse_transform(train_traj,traj_dict)
-            output=self.val_loader.dataset.inverse_transform(self.model(traj_dict),traj_dict)
+            input_ = self.val_loader.dataset.inverse_transform(train_traj,traj_dict)
+            output = self.model(traj_dict)
+            output = self.val_loader.dataset.inverse_transform(output, traj_dict)
             if self.use_cuda:
-                output=output.cpu()
-                input_=input_.cpu()
+                output=output.to('cpu')
+                input_=input_.to('cpu')
             
             loss=torch.norm(output.reshape(output.shape[0],-1)-gt_traj.reshape(gt_traj.shape[0],-1),dim=1)
             min_loss,min_index=torch.min(loss,dim=0)
