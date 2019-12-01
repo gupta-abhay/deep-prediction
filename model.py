@@ -64,31 +64,6 @@ class TCNModel(nn.Module):
         out = self.output_embedding(x)
         return out
 
-
-# DEQ-Trellis Model
-class DEQTrellisModel(nn.Module):
-    class __init__(self):
-        super(DEQTrellisModel, self).__init__()
-
-    def forward(self, input_dict, hidden):
-        raise NotImplementedError
-
-    def init_hidden(self, bsz):
-        raise NotImplementedError
-
-
-# DEQ-Transformer Model
-class DEQTransformerModel(nn.Module):
-    def __init__(self):
-        super(DEQTransformerModel, self).__init__()
-
-    def forward(self, input_dict):
-        raise NotImplementedError
-
-    def init_hidden(self, bsz):
-        raise NotImplementedError
-
-
 class Social_Model(nn.Module):
     def __init__(self,cuda=False):
         super(Social_Model,self).__init__()
