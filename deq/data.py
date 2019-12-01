@@ -11,6 +11,52 @@ from random import shuffle
 import os
 from shapely.geometry import LineString, Point
 from shapely.ops import nearest_points
+
+''' Need better data representation as compared to just the trajectories.
+Feed ground truth of major trajectories point.
+Center lines.
+'''
+def collate_traj_lanecentre(list_data):
+    train_agent=[]
+    gt_agent=[]
+    centerline=[]
+    dict_collate={}
+    dict_input=list_data[0]
+    for key in dict_input.keys():
+        v=[]
+        # print("SOlving key", key)
+        for data in list_data:
+            # print(key,data[key].shape)
+            v.append(data[key])
+        if (key is 'centerline') or (key is 'city'):
+            dict_collate[key]=v
+        elif key is 'seq_index':
+            dict_collate[key]=torch.Tensor(v)
+        else:
+            dict_collate[key]=torch.stack(v,dim=0)
+    return dict_collate
+    # return {'train_agent': torch.stack(train_agent,dim=0),'gt_agent': torch.stack(gt_agent) , 'neighbour':neighbour} 
+
+def collate_traj_social(list_data):
+    train_agent=[]
+    gt_agent=[]
+    neighbour=[]
+    for data in list_data:
+        train_agent.append(data['train_agent'])
+        gt_agent.append(data['gt_agent'])
+        neighbour.append(data['neighbour'])
+    
+    return {'train_agent': torch.stack(train_agent,dim=0),'gt_agent': torch.stack(gt_agent) , 'neighbour':neighbour} 
+
+def collate_traj_social_test(list_data):
+    seq_index=[]
+    train_agent=[]
+    neighbour=[]
+    for data in list_data:
+        train_agent.append(data['train_agent'])
+        neighbour.append(data['neighbour'])
+        seq_index.append(data['seq_index'])
+    return {'seq_index': torch.stack(seq_index,dim=0), 'train_agent': torch.stack(train_agent,dim=0) , 'neighbour':neighbour} 
     
 
 class Argoverse_Data(Dataset):
@@ -25,6 +71,26 @@ class Argoverse_Data(Dataset):
 
     def __len__(self):
         return len(self.seq_paths)
+
+    def old_transform(self,trajectory):
+        def rotation_angle(x,y):
+            angle=np.arctan(abs(y/x))
+            direction= -1* np.sign(x*y)
+            return direction*angle
+        translation=trajectory[0]
+        trajectory=trajectory-trajectory[0]
+        theta=rotation_angle(trajectory[19,0],trajectory[19,1])
+        c, s = np.cos(theta), np.sin(theta)
+        R = np.array([[c,-s], [s, c]])
+        trajectory=torch.tensor(trajectory)
+        trajectory=trajectory.permute(1,0)
+        trajectory=np.matmul(R,trajectory)
+        trajectory=torch.tensor(trajectory)
+        trajectory=trajectory.permute(1,0)
+        if self.mode_test:
+            return trajectory[0:self.train_seq_size].float(),R,translation
+        else:
+            return trajectory[0:self.train_seq_size].float(),trajectory[self.train_seq_size:].float()
 
     def transform(self,trajectory):
         def rotation_angle(x,y):
