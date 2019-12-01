@@ -480,7 +480,7 @@ if __name__ == "__main__":
 
     device = torch.device('cuda' if args.cuda else 'cpu')
 
-    ntokes = 2
+    ntokens = 2
     model = DEQTrellisNetLM(n_token=ntokens, n_layer=args.n_layer, ninp=args.d_embed, nhid=args.nhid, nout=args.nout, 
                         kernel_size=args.ksize, emb_dropout=args.emb_dropout, dropouti=args.dropouti, dropout=args.dropout, 
                         dropouth=args.dropouth, wdrop=args.wdrop, wnorm=args.wnorm, tie_weights=args.tied, 
