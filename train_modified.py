@@ -298,11 +298,14 @@ class Trainer():
             input_ = self.val_loader.dataset.inverse_transform(train_traj,traj_dict)
             output = self.model(traj_dict)
             output = self.val_loader.dataset.inverse_transform(output, traj_dict)
+            
             if self.use_cuda:
                 output=output.to('cpu')
                 input_=input_.to('cpu')
             
+            print (output.type(), input_.type())
             loss=torch.norm(output.reshape(output.shape[0],-1)-gt_traj.reshape(gt_traj.shape[0],-1),dim=1)
+            print (loss.type())
             min_loss,min_index=torch.min(loss,dim=0)
             max_loss,max_index=torch.max(loss,dim=0)
 
