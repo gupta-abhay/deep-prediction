@@ -33,6 +33,7 @@ class Encoder(nn.Module):
         self.hidden_size = hidden_size
         self.hidden_layer_depth = hidden_layer_depth
         self.latent_length = latent_length
+        self.block = block
 
         if block == 'LSTM':
             self.model = nn.LSTM(self.number_of_features, self.hidden_size, self.hidden_layer_depth, dropout = dropout)
@@ -48,7 +49,10 @@ class Encoder(nn.Module):
         :return: last hidden state of encoder, of shape (batch_size, hidden_size)
         """
 
-        _, (h_end, c_end) = self.model(x)
+        if self.block == 'LSTM':
+            _, (h_end, c_end) = self.model(x)
+        else:
+            h_end = self.model(x)
 
         h_end = h_end[-1, :, :]
         return h_end
