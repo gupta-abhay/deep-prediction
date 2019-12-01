@@ -10,8 +10,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from data_utils import get_lm_corpus
-from models.trellisnets.deq_trellisnet import DEQTrellisNetLM
+# from data_utils import get_lm_corpus
+from seq_models.trellisnets.deq_trellisnet import DEQTrellisNetLM
 from modules import radam
 from utils.exp_utils import create_exp_dir
 from utils.data_parallel import BalancedDataParallel
@@ -19,18 +19,18 @@ from utils.splitcross import *
 
 
 parser = argparse.ArgumentParser(description='PyTorch DEQ Sequence Model')
-parser.add_argument('--data', type=str, default='../data/wikitext-103',
-                    help='location of the data corpus (default to the WT103 path)')
-parser.add_argument('--dataset', type=str, default='wt103',
-                    choices=['wt103'],
-                    help='dataset name')
-parser.add_argument('--n_layer', type=int, default=12,
+# parser.add_argument('--data', type=str, default='../data/wikitext-103',
+                    # help='location of the data corpus (default to the WT103 path)')
+# parser.add_argument('--dataset', type=str, default='wt103',
+                    # choices=['wt103'],
+                    # help='dataset name')
+parser.add_argument('--n_layer', type=int, default=20,
                     help='number of total layers')
-parser.add_argument('--d_embed', type=int, default=500,
+parser.add_argument('--d_embed', type=int, default=128,
                     help='size of word embeddings')
-parser.add_argument('--nhid', type=int, default=1400,
+parser.add_argument('--nhid', type=int, default=500,
                     help='number of hidden units per layer')
-parser.add_argument('--nout', type=int, default=500,
+parser.add_argument('--nout', type=int, default=128,
                     help='number of output units')
 parser.add_argument('--epochs', type=int, default=25,
                     help='upper epoch limit (default: 25)')
@@ -45,7 +45,7 @@ parser.add_argument('--lr', type=float, default=1e-3,
 # Gradient updates
 parser.add_argument('--clip', type=float, default=0.07,
                     help='gradient clipping (default: 0.07)')
-parser.add_argument('--batch_size', type=int, default=60,
+parser.add_argument('--batch_size', type=int, default=32,
                     help='batch size')
 parser.add_argument('--batch_chunk', type=int, default=1,
                     help='split batch into chunks to save memory')
@@ -81,24 +81,24 @@ parser.add_argument('--not_tied', action='store_true',
                     help='do not tie the word embedding and softmax weights (default: False)')
 parser.add_argument('--anneal', type=int, default=5,
                     help='learning rate annealing criteria (default: 5)')
-parser.add_argument('--log-interval', type=int, default=100, metavar='N',
-                    help='report interval')
+# parser.add_argument('--log-interval', type=int, default=100, metavar='N',
+#                     help='report interval')
 parser.add_argument('--when', nargs='+', type=int, default=[15, 20, 23],
                     help='When to decay the learning rate')
 parser.add_argument('--ksize', type=int, default=2,
                     help='conv kernel size (default: 2)')
 parser.add_argument('--dilation', type=int, default=1,
                     help='dilation rate (default: 1)')
-parser.add_argument('--n_experts', type=int, default=0,
-                    help='number of softmax experts (default: 0)')
+# parser.add_argument('--n_experts', type=int, default=0,
+#                     help='number of softmax experts (default: 0)')
 parser.add_argument('--multi_gpu', action='store_true',
                     help='use multiple GPU')
 parser.add_argument('--f_thres', type=int, default=50,
                     help='forward pass Broyden threshold')
 parser.add_argument('--b_thres', type=int, default=80,
                     help='backward pass Broyden threshold')
-parser.add_argument('--work_dir', default='LM-TRE', type=str,
-                    help='experiment directory.')
+# parser.add_argument('--work_dir', default='LM-TRE', type=str,
+#                     help='experiment directory.')
 parser.add_argument('--restart', action='store_true',
                     help='restart training from the saved checkpoint')
 parser.add_argument('--restart_dir', type=str, default='',

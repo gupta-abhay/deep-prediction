@@ -7,11 +7,32 @@ import copy
 
 sys.path.append('../../')
 from modules.optimizations import *
-from models.trellisnets.deq_trellisnet_forward_backward import TrellisNetDEQForward, TrellisNetDEQBackward
-from utils.proj_adaptive_softmax import ProjectedAdaptiveLogSoftmax
+from seq_models.trellisnets.deq_trellisnet_forward_backward import TrellisNetDEQForward, TrellisNetDEQBackward
+# from utils.proj_adaptive_softmax import ProjectedAdaptiveLogSoftmax
 
-__author__ = "shaojieb"
-    
+
+class TimeDistributedLayer(nn.Module):
+    def __init__(self, module, batch_first=False):
+        super(TimeDistributedLayer, self).__init__()
+        self.module = module
+        self.batch_first = batch_first
+
+
+    def forward(self, x):
+        if len(x.size()) <= 2:
+            return self.module(x)
+
+        # Squash samples and timestamps into a single axis
+        x_reshape = x.contiguous().view(-1, x.size(1))
+        y = self.module(x_reshape)
+
+        if self.batch_first:
+            y = y.contiguous().view(x.size(0), -1, y.size(-1))   # (samples, timestamps, output_size)
+        else:
+            y = y.view(-1, x.size(1), y.size(1))                 # (timestamps, samples, output_size)
+
+        return y
+
 
 class MixSoftmax(nn.Module):
     def __init__(self, n_components, n_classes, nlasthid, ninp, decoder, dropoutl):
@@ -285,6 +306,7 @@ class DEQTrellisNetLM(nn.Module):
         #    DEQ-Transformer implementation)
         self.encoder = nn.Embedding(n_token, ninp)
         self.decoder = nn.Linear(nout, n_token)
+        self.tdst_output = TimeDistributedLayer(nn.Linear(20,30), batch_first=True)
         self.init_weights()
         if tie_weights:
             if nout != ninp and self.n_experts == 0:
@@ -351,6 +373,8 @@ class DEQTrellisNetLM(nn.Module):
             decoded = torch.log(self.mixsoft(core_out).add_(1e-8))
 
         if decode:
+            core_out = self.tdst_output(core_out)
+            core_out = core_out.permute(0,2,1)
             decoded = decoded if self.n_experts > 0 else self.decoder(core_out)
             return (z1s.transpose(0,1), core_out.transpose(0,1), decoded.transpose(0,1)), [new_mems.permute(2,0,1)]
         
@@ -376,12 +400,12 @@ class DEQTrellisNetLM(nn.Module):
 
 
 if __name__ == '__main__':
-    dev = 'cuda'
-    torch.set_default_tensor_type('torch.cuda.FloatTensor')
-    model = DEQTrellisNetLM(n_token=500, n_layer=50, ninp=120, nhid=300, nout=120, kernel_size=2, wnorm=True,
+    dev = 'cpu'
+    torch.set_default_tensor_type('torch.FloatTensor')
+    model = DEQTrellisNetLM(n_token=2, n_layer=30, ninp=128, nhid=300, nout=128, kernel_size=2, wnorm=True,
                             tie_weights=True).to(dev)
-    raw_data = torch.randint(0, 500, (200, 7)).long().to(dev)  # Generate 500 dummy word tokens (not embeddings)
-    data, target = raw_data[:75], raw_data[1:76]
+    raw_data = torch.randint(0, 2, (200, 7)).long().to(dev)  # Generate 500 dummy word tokens (not embeddings)
+    data, target = raw_data[:20], raw_data[1:31]
     mems = None
     train_step=-1
     model.eval()
@@ -391,4 +415,3 @@ if __name__ == '__main__':
     loss = out
     loss = loss.float().mean().type_as(loss)
     loss.backward()
-    print(model.trellisnet.module.inject_conv.weight_v.grad)   # If not using wnorm, replace weight_v with weight

@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from data_utils import get_lm_corpus
-from models.transformers.deq_transformer import DEQTransformerLM
+from seq_models.transformers.deq_transformer import DEQTransformerLM
 from modules import radam
 from utils.exp_utils import create_exp_dir
 from utils.data_parallel import BalancedDataParallel
