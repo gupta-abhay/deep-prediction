@@ -40,10 +40,10 @@ resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
 
 class Trainer():
-    def __init__(self,model,cuda,optimizer,train_loader,\
+    def __init__(self,model,use_cuda,optimizer,train_loader,\
         val_loader,loss_fn,num_epochs,writer,args,modeldir, params):
         self.model = model
-        self.use_cuda = cuda
+        self.use_cuda = use_cuda
         
         self.optimizer=optimizer
         self.train_loader=train_loader
@@ -85,7 +85,7 @@ class Trainer():
             self.optimizer.zero_grad()
             if mems:
                 mems[0] = mems[0].detach()
-            
+
             data = traj_dict['train_agent']
             target = traj_dict['gt_agent']
 
@@ -435,26 +435,22 @@ if __name__ == "__main__":
                         help='evaluation mode')
     parser.add_argument('--load', type=str, default='',
                         help='path to load weight')
-    parser.add_argument('--name', type=str, default='N/A',
-                        help='name of the trial')
     parser.add_argument('--mode',type=str,default='train',help='mode: train, test ,validate')
     parser.add_argument('--model_dir',type=str,default='',help='path to saved model for validation')
 
         
     args = parser.parse_args()
     curr_time = strftime("%Y%m%d%H%M%S", localtime())
-    if args.mode is 'train':
-        logger_dir = './runs/trellisnet' + curr_time + '/'
-        model_dir = './models/trellisnet' + curr_time + '/'
+    if args.mode == 'train':
+        logger_dir = './runs/trellisnet/' + curr_time + '/'
+        model_dir = './models/trellisnet/' + curr_time + '/'
         os.makedirs(model_dir)
     else:
         logger_dir=None
         model_dir=args.model_dir
-    
 
     args.tied = not args.not_tied
     args.pretrain_steps += args.start_train_steps
-    # print(f"Experiment name: {args.name}")
     assert args.seq_len > 0, "For now you must set seq_len > 0 when using deq"
     # args.work_dir += "deq"
     args.cuda = torch.cuda.is_available()
