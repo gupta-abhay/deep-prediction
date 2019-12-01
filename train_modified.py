@@ -197,49 +197,50 @@ class Trainer():
         print("done")
 
     def validate_model(self, model_path):
-        total_loss=0
-        num_batches=len(self.val_loader.batch_sampler)
-        self.model.load_state_dict(torch.load(model_path+'best-model.pt')['model_state_dict'])
-        self.model.eval()
-        ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec=(0,0,0,0)
-        ade_one_sec_avg, fde_one_sec_avg ,ade_three_sec_avg, fde_three_sec_avg = (0,0,0,0)
-        no_samples=0
+        # total_loss=0
+        # num_batches=len(self.val_loader.batch_sampler)
+        # self.model.load_state_dict(torch.load(model_path+'best-model.pt')['model_state_dict'])
+        # self.model.eval()
+        # ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec=(0,0,0,0)
+        # ade_one_sec_avg, fde_one_sec_avg ,ade_three_sec_avg, fde_three_sec_avg = (0,0,0,0)
+        # no_samples=0
         
-        for i_batch,traj_dict in enumerate(self.val_loader):
-            gt_traj=traj_dict['gt_unnorm_agent']
-            if self.use_cuda:
-                gt_traj=gt_traj.cuda()
+        # for i_batch,traj_dict in enumerate(self.val_loader):
+        #     gt_traj=traj_dict['gt_unnorm_agent']
+        #     if self.use_cuda:
+        #         gt_traj=gt_traj.cuda()
             
-            if self.model_type == 'VRAE':
-                pred_traj, latent_traj, latent_mean, latent_logvar = self.model(traj_dict)
-                pred_traj = self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
-                kl_loss = -0.5 * torch.mean(1 + latent_logvar - latent_mean.pow(2) - latent_logvar.exp())
-                mse_loss=self.loss_fn(pred_traj,gt_traj)
-                loss = kl_loss + mse_loss
-            else:
-                pred_traj=self.model(traj_dict)
-                pred_traj=self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
-                loss=self.loss_fn(pred_traj,gt_traj)
+        #     if self.model_type == 'VRAE':
+        #         pred_traj, latent_traj, latent_mean, latent_logvar = self.model(traj_dict)
+        #         pred_traj = self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
+        #         kl_loss = -0.5 * torch.mean(1 + latent_logvar - latent_mean.pow(2) - latent_logvar.exp())
+        #         mse_loss=self.loss_fn(pred_traj,gt_traj)
+        #         loss = kl_loss + mse_loss
+        #     else:
+        #         pred_traj=self.model(traj_dict)
+        #         pred_traj=self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
+        #         loss=self.loss_fn(pred_traj,gt_traj)
 
             
-            total_loss=total_loss+loss.data
-            batch_samples=gt_traj.shape[0]           
+        #     total_loss=total_loss+loss.data
+        #     batch_samples=gt_traj.shape[0]           
             
-            ade_one_sec+=sum([get_ade(pred_traj[i,:10,:],gt_traj[i,:10,:]) for i in range(batch_samples)])
-            fde_one_sec+=sum([get_fde(pred_traj[i,:10,:],gt_traj[i,:10,:]) for i in range(batch_samples)])
-            ade_three_sec+=sum([get_ade(pred_traj[i,:,:],gt_traj[i,:,:]) for i in range(batch_samples)])
-            fde_three_sec+=sum([get_fde(pred_traj[i,:,:],gt_traj[i,:,:]) for i in range(batch_samples)])
+        #     ade_one_sec+=sum([get_ade(pred_traj[i,:10,:],gt_traj[i,:10,:]) for i in range(batch_samples)])
+        #     fde_one_sec+=sum([get_fde(pred_traj[i,:10,:],gt_traj[i,:10,:]) for i in range(batch_samples)])
+        #     ade_three_sec+=sum([get_ade(pred_traj[i,:,:],gt_traj[i,:,:]) for i in range(batch_samples)])
+        #     fde_three_sec+=sum([get_fde(pred_traj[i,:,:],gt_traj[i,:,:]) for i in range(batch_samples)])
             
-            no_samples+=batch_samples
-            ade_one_sec_avg = float(ade_one_sec)/no_samples
-            ade_three_sec_avg = float(ade_three_sec)/no_samples
-            fde_one_sec_avg = float(fde_one_sec)/no_samples
-            fde_three_sec_avg = float(fde_three_sec)/no_samples
+        #     no_samples+=batch_samples
+        #     ade_one_sec_avg = float(ade_one_sec)/no_samples
+        #     ade_three_sec_avg = float(ade_three_sec)/no_samples
+        #     fde_one_sec_avg = float(fde_one_sec)/no_samples
+        #     fde_three_sec_avg = float(fde_three_sec)/no_samples
 
-            print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {total_loss/(i_batch+1):.4f} \
-            One sec:- ADE:{ade_one_sec/(no_samples):.4f} FDE: {fde_one_sec/(no_samples):.4f}\
-            Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}",end="\r")
+        #     print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {total_loss/(i_batch+1):.4f} \
+        #     One sec:- ADE:{ade_one_sec/(no_samples):.4f} FDE: {fde_one_sec/(no_samples):.4f}\
+        #     Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}",end="\r")
 
+        # print()
         self.save_top_errors_accuracy(model_dir)
         print("Saved error plots")
 
@@ -296,7 +297,7 @@ class Trainer():
             if self.use_cuda:
                 output=output.cpu()
                 input_=input_.cpu()
-            # import pdb;pdb.set_trace()
+            
             loss=torch.norm(output.reshape(output.shape[0],-1)-gt_traj.reshape(gt_traj.shape[0],-1),dim=1)
             min_loss,min_index=torch.min(loss,dim=0)
             max_loss,max_index=torch.max(loss,dim=0)
@@ -413,12 +414,6 @@ if __name__ == "__main__":
     parser.add_argument('--mode',type=str,default='train',help='mode: train, test ,validate')
     parser.add_argument('--model_dir',type=str,default=None,help='model path for test or validate')
 
-    # parser.add_argument('--train-log-interval', type=int, default=100,
-    #                     help='number of intervals after which to print train stats (default: 100)')
-    # parser.add_argument('--val-log-interval', type=int, default=500,
-    #                     help='number of intervals after which to print val stats (default: 500)')
-    # parser.add_argument('--test-log-interval', type=int, default=500,
-    #                     help='number of intervals after which to print test stats (default: 500)')
     # parser.add_argument('--social',action='store_true',help='use neighbour data as well. default: False')
     parser.add_argument('--dropout', type=float, default=0.2,
                         help='dropout applied to layers (default: 0.2)')

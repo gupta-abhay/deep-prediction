@@ -191,7 +191,7 @@ class VRAE(BaseEstimator, nn.Module):
             self.dtype = torch.cuda.FloatTensor
 
 
-        self.encoder = Encoder(number_of_features = number_of_features,
+        self.encoder = Encoder(number_of_features=number_of_features,
                                hidden_size=hidden_size,
                                hidden_layer_depth=hidden_layer_depth,
                                latent_length=latent_length,
