@@ -262,7 +262,7 @@ class Trainer():
         print()
         print("Saving the test data results in dir",model_dir)
         self.save_trajectory(output_all,model_dir)
-        self.save_top_errors_accuracy(model_dir)
+        # self.save_top_errors_accuracy(model_dir)
 
     def save_top_errors_accuracy(self,model_dir, model_path):
         min_loss=np.inf
@@ -453,7 +453,7 @@ if __name__ == "__main__":
     elif args.model == 'SOCIAL':
         model = Social_Model(cuda=args.cuda)
     elif args.model == 'VRAE':
-        model = VRAE(sequence_length=20, number_of_features=2)
+        model = VRAE(sequence_length=30, number_of_features=2, block='GRU')
     
     if args.mode is 'train':
         logger_dir = './runs/' + args.model + '/' + curr_time + '/'

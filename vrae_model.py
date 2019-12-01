@@ -175,7 +175,7 @@ class VRAE(BaseEstimator, nn.Module):
     :param max_grad_norm: The grad-norm to be clipped
     :param dload: Download directory where models are to be dumped
     """
-    def __init__(self, sequence_length, number_of_features, hidden_size=128, hidden_layer_depth=2, latent_length=20, learning_rate=0.005, block='LSTM', dropout_rate = 0., cuda=True, batch_size=32):
+    def __init__(self, sequence_length, number_of_features, hidden_size=128, hidden_layer_depth=1, latent_length=20, learning_rate=0.005, block='LSTM', dropout_rate = 0., cuda=True, batch_size=32):
 
         super(VRAE, self).__init__()
 
@@ -226,7 +226,9 @@ class VRAE(BaseEstimator, nn.Module):
             input_traj = input_traj.cuda()
 
         cell_output = self.encoder(input_traj)
+        print (cell_output.shape)
         latent = self.lmbd(cell_output)
+        print (latent.shape)
         x_decoded = self.decoder(latent)
 
         return x_decoded, latent, self.lmbd.latent_mean, self.lmbd.latent_logvar
