@@ -179,12 +179,12 @@ class VRAE(BaseEstimator, nn.Module):
 
         super(VRAE, self).__init__()
 
-        # self.dtype = torch.FloatTensor
-        # self.use_cuda = cuda
-
-        # if not torch.cuda.is_available():
-        #     self.use_cuda = False
-
+        self.use_cuda = cuda
+        
+        self.dtype = torch.FloatTensor
+        if self.use_cuda:
+            self.dtype = torch.cuda.FloatTensor
+        
 
         self.encoder = Encoder(number_of_features=number_of_features,
                                hidden_size=hidden_size,
