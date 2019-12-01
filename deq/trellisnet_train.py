@@ -1,6 +1,7 @@
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
+import torch.optim as optim
 
 from argoverse.map_representation.map_api import ArgoverseMap
 from argoverse.data_loading.argoverse_tracking_loader import ArgoverseTrackingLoader
