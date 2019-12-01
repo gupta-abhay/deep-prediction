@@ -226,7 +226,7 @@ class VRAE(BaseEstimator, nn.Module):
         :return: the decoded output, latent vector
         """
 
-        input_traj = x['input_traj']
+        input_traj = x['train_agent']
 
         cell_output = self.encoder(input_traj)
         latent = self.lmbd(cell_output)
