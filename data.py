@@ -309,26 +309,3 @@ class Argoverse_LaneCentre_Data(Argoverse_Data):
         #         end_dist = line.project(final_point)
         #         if end_dist-start_dist>best_distance:
         #             best_centerline = LineString(centerlines)
-        
-
-
-def Argoverse_Data_withMap(Argoverse_Data):
-    def __init__(self, root_dir='', avm=None, social=False, train_seq_size=20, cuda=False, test=False):
-        super(Argoverse_Data_withMap, self).__init__(root_dir, train_seq_size, cuda, test)
-        
-        if avm is None:
-            self.avm=ArgoverseMap()
-        else:
-            self.avm=avm
-        
-        print("Done loading map")
-
-    def __getitem__(self, index):
-        current_loader = self.afl.get(self.seq_paths[index])
-        agent_traj=current_loader.agent_traj
-
-        if self.mode_test:
-            pass
-        else:
-            pass
-
