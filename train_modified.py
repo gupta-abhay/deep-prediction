@@ -241,7 +241,7 @@ class Trainer():
         #     Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}",end="\r")
 
         # print()
-        self.save_top_errors_accuracy(model_dir)
+        self.save_top_errors_accuracy(self.model_dir, model_path)
         print("Saved error plots")
 
     def test_model(self,model_dir):
@@ -264,8 +264,8 @@ class Trainer():
         self.save_trajectory(output_all,model_dir)
         self.save_top_errors_accuracy(model_dir)
 
-    def save_top_errors_accuracy(self,model_dir):
-        self.model.load_state_dict(torch.load(model_dir+'best-model.pt')['model_state_dict'])
+    def save_top_errors_accuracy(self,model_dir, model_path):
+        self.model.load_state_dict(torch.load(model_path+'best-model.pt')['model_state_dict'])
         self.model.eval()
         min_loss=np.inf
         max_loss=0
@@ -285,6 +285,8 @@ class Trainer():
         city_name_min=[]
         seq_path_list_min=[]
 
+
+        print ("here")
         num_batches=len(self.val_loader.batch_sampler)
         for i_batch,traj_dict in enumerate(self.val_loader):
             print(f"Running {i_batch}/{num_batches}",end="\r")
