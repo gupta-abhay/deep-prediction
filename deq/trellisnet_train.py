@@ -511,9 +511,9 @@ if __name__ == "__main__":
     argoverse_train=Argoverse_Data('../data/train/data/',cuda=args.cuda)
     argoverse_val=Argoverse_Data('../data/val/data',cuda=args.cuda)
     train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
-                        shuffle=True, num_workers=10)
+                        shuffle=True, num_workers=1)
     val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
-                        shuffle=True, num_workers=10)
+                        shuffle=True, num_workers=1)
 
     print("Argoverse train dataloder is of size", len(train_loader.batch_sampler))
     print("Argoverse val dataloader is of size", len(val_loader.batch_sampler))
