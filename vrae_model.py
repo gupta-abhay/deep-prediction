@@ -179,16 +179,11 @@ class VRAE(BaseEstimator, nn.Module):
 
         super(VRAE, self).__init__()
 
+        # self.dtype = torch.FloatTensor
+        # self.use_cuda = cuda
 
-        self.dtype = torch.FloatTensor
-        self.use_cuda = cuda
-
-        if not torch.cuda.is_available() and self.use_cuda:
-            self.use_cuda = False
-
-
-        if self.use_cuda:
-            self.dtype = torch.cuda.FloatTensor
+        # if not torch.cuda.is_available():
+        #     self.use_cuda = False
 
 
         self.encoder = Encoder(number_of_features=number_of_features,
@@ -215,8 +210,8 @@ class VRAE(BaseEstimator, nn.Module):
         self.hidden_layer_depth = hidden_layer_depth
         self.latent_length = latent_length
 
-        if self.use_cuda:
-            self.cuda()
+        # if self.use_cuda:
+        #     self.cuda()
 
     def forward(self, x):
         """
@@ -227,6 +222,8 @@ class VRAE(BaseEstimator, nn.Module):
         """
 
         input_traj = x['train_agent']
+        if self.use_cuda:
+            input_traj = input_traj.cuda()
 
         cell_output = self.encoder(input_traj)
         latent = self.lmbd(cell_output)
