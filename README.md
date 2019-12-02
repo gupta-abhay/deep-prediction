@@ -5,7 +5,7 @@ This repository contains the most recent work for the MSCV Capstone Project
 
 ## Installation
 
-Most of the work is done on Pytorch 1.2.0 (latest stable release, effective 09/19/2019) and using the [pargoverse-api](https://github.com/argoai/argoverse-api).
+Most of the work is done on Pytorch 1.2.0 (latest stable release, effective 09/19/2019) and using the [argoverse-api](https://github.com/argoai/argoverse-api).
 
 To replicate the environment, run
 
@@ -18,7 +18,7 @@ This creates the environment, which can be started using,
 conda activate deep_predict_argo
 ```
 
-Then to install the argoverse-api, follow the instructions given [here]{https://github.com/argoai/argoverse-api#installation}. We have added our own code to api to enable several missing features for our modelling.
+Then to install the argoverse-api, follow the instructions given [here](https://github.com/argoai/argoverse-api#installation). We have added our own code to api to enable several missing features for our modelling.
 
 ## Argoverse Extra Features
 
@@ -26,20 +26,29 @@ Then to install the argoverse-api, follow the instructions given [here]{https://
 
 ## Models
 
-- LSTM Baseline
+- LSTM Baseline (w/ XY and Centerline data)
+- Social-LSTM (with universal pooling module)
 - TCN Baseline
 - TrellisNet Baseline
+- Transformer DEQ Baseline
+- Stochastic-TCN (in development)
 
 
 ## Execution
 
-To train and validate the models, run 
+To train the models, run 
 
 ```
-python train.py --model <model_name>
+python train_modified.py --model <model_name> --mode 'train'
 ```
 
-Look at `train.py` on how to pass model_name argument.
+To train the models, run 
+
+```
+python train_modified.py --model <model_name> --mode 'validate'
+```
+
+Look at `train_modified.py` on how to pass model_name argument.
 
 
 ## Optimizers
@@ -47,6 +56,6 @@ Look at `train.py` on how to pass model_name argument.
 These are some recently introduced optimizers introduced (NIPS / ICCV / ICLR 2019). We have implemented the code for them but have not used them in the modelling currently.
 
 - LookAhead Optimizer
-- RectifiedAdam Optimizer
-- Ranger (RAdam + LookAhead)
+- RectifiedAdam Optimizer [being used for TrellisNet and Transformer training]
+- Ranger (RAdam + LookAhead) 
 - Ralamb (RAdam + LARS + LookAhead)
