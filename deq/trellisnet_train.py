@@ -105,7 +105,6 @@ class Trainer():
                 (_, _, pred_traj), mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
                                         b_thres=args.b_thres, subseq_len=subseq_len, decode=True)
 
-                # print (pred_traj.shape, target.shape)
                 loss = self.loss_fn(pred_traj, target)
                 loss.backward()
                 train_loss += loss.item()
@@ -164,7 +163,7 @@ class Trainer():
 
                 print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {val_loss/(i_batch+1):.4f} \
                 One sec:- ADE:{ade_one_sec/(no_samples):.4f} FDE: {fde_one_sec/(no_samples):.4f}\
-                Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}",end="\r")
+                Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}", end="\r")
 
                 _filename = self.model_dir + 'best-model.pt'
 

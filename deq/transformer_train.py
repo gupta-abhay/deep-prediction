@@ -46,7 +46,7 @@ except RuntimeError:
 
 class Trainer():
     def __init__(self,model,use_cuda,optimizer,train_loader,\
-        val_loader,loss_fn,num_epochs,writer,args,modeldir, params):
+        val_loader,loss_fn,num_epochs,writer,args,modeldir):
         self.model = model
         self.use_cuda = use_cuda
         
@@ -56,7 +56,7 @@ class Trainer():
         self.loss_fn=loss_fn
         self.num_epochs=num_epochs
 
-        self.params = params
+        # self.params = params
         
         self.best_1_ade = np.inf
         self.best_1_fde = np.inf
@@ -78,8 +78,7 @@ class Trainer():
                 pred_traj=pred_traj.cuda()
                 gt_traj=gt_traj.cuda()
             loss=self.loss_fn(pred_traj,gt_traj)
-            print(f"Batch: {i_batch}, Loss: {loss.data}")
-
+            print(f"Batch: {i_batch}, Loss: {loss.item()}")
     
     def train_epoch(self):
         try:
@@ -101,20 +100,32 @@ class Trainer():
                     data = data.cuda()
                     target = target.cuda()
                 
-                (_, _, pred_traj), mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
-                                        b_thres=args.b_thres, subseq_len=subseq_len, decode=True)
+                pred_traj, mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
+                                        b_thres=args.b_thres, subseq_len=subseq_len)
 
-                # print (pred_traj.shape, target.shape)
                 loss = self.loss_fn(pred_traj, target)
                 loss.backward()
                 train_loss += loss.item()
 
                 avg_loss = float(train_loss) / (i_batch+1)
-                print(f"Training Iter {i_batch+1}/{num_batches} Avg Loss {avg_loss:.4f}",end="\r")
+                print(f"Training Iter {i_batch+1}/{num_batches} Avg Loss {avg_loss:.4f}", end="\r")
 
-                torch.nn.utils.clip_grad_norm(self.params, args.clip)
+                torch.nn.utils.clip_grad_norm(self.model.parameters(), args.clip)
                 self.optimizer.step()
                 self.train_step += 1
+
+                # Step-wise learning rate annealing according to some scheduling (we ignore 'constant' scheduling)
+                if args.scheduler in ['cosine', 'constant', 'dev_perf']:
+                    # linear warmup stage
+                    if self.train_step < args.warmup_step:
+                        curr_lr = args.lr * self.train_step / args.warmup_step
+                        optimizer.param_groups[0]['lr'] = curr_lr
+                    else:
+                        if args.scheduler == 'cosine':
+                            scheduler.step(self.train_step)
+                elif args.scheduler == 'inv_sqrt':
+                    scheduler.step(self.train_step)
+
 
             return train_loss/num_batches
         except Exception as e:
@@ -143,8 +154,8 @@ class Trainer():
                     data = data.cuda()
                     target = target.cuda()
                 
-                (_, _, pred_traj), mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
-                                        b_thres=args.b_thres, subseq_len=subseq_len, decode=True)
+                pred_traj, mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
+                                        b_thres=args.b_thres, subseq_len=subseq_len)
 
                 loss = self.loss_fn(pred_traj, target)
                 val_loss += loss.item()
@@ -360,113 +371,74 @@ class Trainer():
         elif args.mode=="validate":
             self.validate_model(self.model_dir)
     
+def init_weight(weight):
+    if args.init == 'uniform':
+        nn.init.uniform_(weight, -args.init_range, args.init_range)
+    elif args.init == 'normal':
+        nn.init.normal_(weight, 0.0, args.init_std)
+
+def init_bias(bias):
+    nn.init.constant_(bias, 0.0)
+
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Linear') != -1 or classname.find('Conv1d') != -1:
+        if hasattr(m, 'weight') and m.weight is not None:
+            init_weight(m.weight)
+        if hasattr(m, 'bias') and m.bias is not None:
+            init_bias(m.bias)
+    elif classname.find('AdaptiveEmbedding') != -1:
+        if hasattr(m, 'emb_projs'):
+            for i in range(len(m.emb_projs)):
+                if m.emb_projs[i] is not None:
+                    nn.init.normal_(m.emb_projs[i], 0.0, args.proj_init_std)
+    elif classname.find('Embedding') != -1:
+        if hasattr(m, 'weight'):
+            init_weight(m.weight)
+    elif classname.find('ProjectedAdaptiveLogSoftmax') != -1:
+        if hasattr(m, 'cluster_weight') and m.cluster_weight is not None:
+            init_weight(m.cluster_weight)
+        if hasattr(m, 'cluster_bias') and m.cluster_bias is not None:
+            init_bias(m.cluster_bias)
+        if hasattr(m, 'out_projs'):
+            for i in range(len(m.out_projs)):
+                if m.out_projs[i] is not None:
+                    nn.init.normal_(m.out_projs[i], 0.0, args.proj_init_std)
+    elif classname.find('LayerNorm') != -1:
+        if hasattr(m, 'weight'):
+            nn.init.normal_(m.weight, 1.0, args.init_std)
+        if hasattr(m, 'bias') and m.bias is not None:
+            init_bias(m.bias)
+    elif classname.find('WeightShareSelfAttention') != -1:
+        if hasattr(m, 'r_w_bias'):
+            init_weight(m.r_w_bias)
+        if hasattr(m, 'r_r_bias'):
+            init_weight(m.r_r_bias)
+
+def update_dropout(m):
+    classname = m.__class__.__name__
+    if classname.find('Dropout') != -1:
+        if hasattr(m, 'p'):
+            m.p = args.dropout
+
+def update_dropatt(m):
+    if hasattr(m, 'dropatt'):
+        m.dropatt.p = args.dropatt
+
 
 if __name__ == "__main__":
     warnings.filterwarnings('ignore')
 
     parser = argparse.ArgumentParser(description='PyTorch DEQ Sequence Model')
-    parser.add_argument('--n_layer', type=int, default=30,
+    parser.add_argument('--data', type=str, default='../data/wikitext-103',
+                        help='location of the data corpus (default to the WT103 path)')
+    parser.add_argument('--dataset', type=str, default='wt103',
+                        choices=['wt103'],
+                        help='dataset name')
+    parser.add_argument('--n_layer', type=int, default=12,
                         help='number of total layers')
-    parser.add_argument('--d_embed', type=int, default=128,
-                        help='size of word embeddings')
-    parser.add_argument('--nhid', type=int, default=300,
-                        help='number of hidden units per layer')
-    parser.add_argument('--nout', type=int, default=128,
-                        help='number of output units')
-    parser.add_argument('--epochs', type=int, default=25,
-                        help='upper epoch limit (default: 25)')
-
-    # Optimizers
-    parser.add_argument('--optim', default='Adam', type=str,
-                        choices=['Adam', 'SGD', 'Adagrad', 'RMSprop', 'RAdam'],
-                        help='optimizer to use.')
-    parser.add_argument('--lr', type=float, default=1e-3,
-                        help='initial learning rate (default: 1e-3)')
-
-    # Gradient updates
-    parser.add_argument('--clip', type=float, default=0.07,
-                        help='gradient clipping (default: 0.07)')
-    parser.add_argument('--batch_size', type=int, default=32,
-                        help='batch size')
-    parser.add_argument('--batch_chunk', type=int, default=1,
-                        help='split batch into chunks to save memory')
-
-    # Sequence logistics
-    parser.add_argument('--seq_len', type=int, default=100,
-                        help='total sequence length')
-    parser.add_argument('--subseq_len', type=int, default=75,
-                        help='length of subsequence processed each time by DEQ')
-    parser.add_argument('--tgt_len', type=int, default=150,
-                    help='number of tokens to predict')
-    parser.add_argument('--eval_tgt_len', type=int, default=150,
-                        help='number of tokens to predict for evaluation')
-    parser.add_argument('--mem_len', type=int, default=150,
-                        help='length of the retained previous heads')
-    parser.add_argument('--subseq_len', type=int, default=0,
-                        help='length of subsequence processed each time by DEQ')
-    parser.add_argument('--local_size', type=int, default=0,
-                        help='local horizon size')
-
-    # Regularizations
-    parser.add_argument('--dropout', type=float, default=0.1,
-                        help='output dropout (0 = no dropout)')
-    parser.add_argument('--dropouti', type=float, default=0.1,
-                        help='input dropout (0 = no dropout)')
-    parser.add_argument('--wdrop', type=float, default=0.0,
-                        help='dropout applied to weights (0 = no dropout)')
-    parser.add_argument('--emb_dropout', type=float, default=0.0,
-                        help='dropout applied to embedding layer (0 = no dropout)')
-    parser.add_argument('--dropouth', type=float, default=0.1,
-                        help='dropout applied to hidden layers (0 = no dropout)')
-    parser.add_argument('--weight_decay', type=float, default=0.0,
-                        help='weight decay')
-    parser.add_argument('--wnorm', action='store_false',
-                        help='use weight normalization (default: True)')
-
-    # Training techniques
-    parser.add_argument('--seed', type=int, default=1111,
-                        help='random seed')
-    parser.add_argument('--cuda', action='store_true',
-                        help='use CUDA')
-    parser.add_argument('--not_tied', action='store_true',
-                        help='do not tie the word embedding and softmax weights (default: False)')
-    parser.add_argument('--anneal', type=int, default=5,
-                        help='learning rate annealing criteria (default: 5)')
-    parser.add_argument('--when', nargs='+', type=int, default=[15, 20, 23],
-                        help='When to decay the learning rate')
-    parser.add_argument('--ksize', type=int, default=2,
-                        help='conv kernel size (default: 2)')
-    parser.add_argument('--dilation', type=int, default=1,
-                        help='dilation rate (default: 1)')
-    parser.add_argument('--n_experts', type=int, default=0,
-                        help='number of softmax experts (default: 0)')
-    parser.add_argument('--multi_gpu', action='store_true',
-                        help='use multiple GPU')
-    parser.add_argument('--f_thres', type=int, default=50,
-                        help='forward pass Broyden threshold')
-    parser.add_argument('--b_thres', type=int, default=80,
-                        help='backward pass Broyden threshold')
-    parser.add_argument('--restart', action='store_true',
-                        help='restart training from the saved checkpoint')
-    parser.add_argument('--restart_dir', type=str, default='',
-                        help='restart dir')
-    parser.add_argument('--debug', action='store_true',
-                        help='run in debug mode (do not create exp dir)')
-    parser.add_argument('--gpu0_bsz', type=int, default=-1,
-                        help='batch size on gpu 0')
-    parser.add_argument('--pretrain_steps', type=int, default=0,
-                        help='number of pretrain steps')
-    parser.add_argument('--start_train_steps', type=int, default=0,
-                        help='starting training step count (default to 0)')
-    parser.add_argument('--eval', action='store_true',
-                        help='evaluation mode')
-    parser.add_argument('--load', type=str, default='',
-                        help='path to load weight')
-    parser.add_argument('--mode',type=str,default='train',help='mode: train, test ,validate')
-    parser.add_argument('--model_dir',type=str,default='',help='path to saved model for validation')
-
     parser.add_argument('--eval_n_layer', type=int, default=12,
-                    help='number of total layers at evaluation')
+                        help='number of total layers at evaluation')
     parser.add_argument('--n_head', type=int, default=10,
                         help='number of heads (default: 10)')
     parser.add_argument('--d_head', type=int, default=50,
@@ -478,12 +450,136 @@ if __name__ == "__main__":
     parser.add_argument('--d_inner', type=int, default=8000,
                         help='inner dimension in the position-wise feedforward block (default: 8000)')
 
+    # Dropouts
+    parser.add_argument('--dropout', type=float, default=0.0,
+                        help='global dropout rate (default: 0.05)')
+    parser.add_argument('--dropatt', type=float, default=0.0,
+                        help='attention map dropout rate (default: 0.0)')
+
+    # Initializations
+    # Note: Generally, to make sure the DEQ model is stable initially, we should constrain the range
+    #       of initialization.
+    parser.add_argument('--init', default='normal', type=str,
+                        help='parameter initializer to use.')
+    parser.add_argument('--emb_init', default='normal', type=str,
+                        help='parameter initializer to use.')
+    parser.add_argument('--init_range', type=float, default=0.05,
+                        help='parameters initialized by U(-init_range, init_range)')
+    parser.add_argument('--emb_init_range', type=float, default=0.01,
+                        help='parameters initialized by U(-init_range, init_range)')
+    parser.add_argument('--init_std', type=float, default=0.01,
+                        help='parameters initialized by N(0, init_std)')
+    parser.add_argument('--proj_init_std', type=float, default=0.01,
+                        help='parameters initialized by N(0, init_std)')
+
+    # Optimizers
+    parser.add_argument('--optim', default='Adam', type=str,
+                        choices=['Adam', 'SGD', 'Adagrad', 'RMSprop', 'RAdam'],
+                        help='optimizer to use.')
+    parser.add_argument('--lr', type=float, default=0.00025,
+                        help='initial learning rate (0.00025|5 for adam|sgd)')
+    parser.add_argument('--scheduler', default='cosine', type=str,
+                        choices=['cosine', 'inv_sqrt', 'dev_perf', 'constant'],
+                        help='lr scheduler to use.')
+    parser.add_argument('--warmup_step', type=int, default=0,
+                        help='the number of steps to warm up the learning rate to its lr value')
+    parser.add_argument('--decay_rate', type=float, default=0.5,
+                        help='decay factor when ReduceLROnPlateau is used')
+    parser.add_argument('--lr_min', type=float, default=0.0,
+                        help='minimum learning rate during annealing')
+
+    # Gradient updates
+    parser.add_argument('--clip', type=float, default=0.25,
+                        help='gradient clipping')
+    parser.add_argument('--clip_nonemb', action='store_true',
+                        help='only clip the gradient of non-embedding params')
+    parser.add_argument('--max_step', type=int, default=200000,
+                        help='upper epoch limit (at least 200K for WT103 or PTB)')
+    parser.add_argument('--batch_size', type=int, default=60,
+                        help='batch size')
+    parser.add_argument('--batch_chunk', type=int, default=1,
+                        help='split batch into chunks to save memory')
+
+    # Sequence logistics
+    parser.add_argument('--tgt_len', type=int, default=150,
+                        help='number of tokens to predict')
+    parser.add_argument('--eval_tgt_len', type=int, default=150,
+                        help='number of tokens to predict for evaluation')
+    parser.add_argument('--mem_len', type=int, default=150,
+                        help='length of the retained previous heads')
+    parser.add_argument('--subseq_len', type=int, default=0,
+                        help='length of subsequence processed each time by DEQ')
+    parser.add_argument('--local_size', type=int, default=0,
+                        help='local horizon size')
+
+    # Training techniques
+    parser.add_argument('--not_tied', action='store_true',
+                        help='do not tie the word embedding and softmax weights')
+    parser.add_argument('--seed', type=int, default=1111,
+                        help='random seed')
+    parser.add_argument('--cuda', action='store_true',
+                        help='use CUDA')
+    parser.add_argument('--eval', action='store_true',
+                        help='evaluation mode')
+    parser.add_argument('--adaptive', action='store_true',
+                        help='use adaptive softmax')
+    parser.add_argument('--div_val', type=int, default=1,
+                        help='divident value for adapative input and softmax')
+    parser.add_argument('--pre_lnorm', action='store_true',
+                        help='apply LayerNorm to the input instead of the output')
+    parser.add_argument('--wnorm', action='store_true',
+                        help='apply WeightNorm to the weights')
+    parser.add_argument('--varlen', action='store_true',
+                        help='use variable length')
+    parser.add_argument('--multi_gpu', action='store_true',
+                        help='use multiple GPU')
+    parser.add_argument('--log-interval', type=int, default=200,
+                        help='report interval')
+    parser.add_argument('--eval-interval', type=int, default=4000,
+                        help='evaluation interval')
+    parser.add_argument('--f_thres', type=int, default=50,
+                        help='forward pass Broyden threshold')
+    parser.add_argument('--b_thres', type=int, default=80,
+                        help='backward pass Broyden threshold')
+    parser.add_argument('--work_dir', default='LM-TFM', type=str,
+                        help='experiment directory.')
+    parser.add_argument('--restart', action='store_true',
+                        help='restart training from the saved checkpoint')
+    parser.add_argument('--restart_dir', type=str, default='',
+                        help='restart dir')
+    parser.add_argument('--debug', action='store_true',
+                        help='run in debug mode (do not create exp dir)')
+    parser.add_argument('--same_length', action='store_true',
+                        help='use the same attn length for all tokens')
+    parser.add_argument('--attn_type', type=int, default=0,
+                        help='attention type. 0 for ours, 1 for Shaw et al,'
+                        '2 for Vaswani et al, 3 for Al Rfou et al. (Only 0 supported now)')
+    parser.add_argument('--eta_min', type=float, default=0.0,
+                        help='min learning rate for cosine scheduler')
+    parser.add_argument('--weight_decay', type=float, default=0.0,
+                        help='weight decay')
+    parser.add_argument('--gpu0_bsz', type=int, default=-1,
+                        help='batch size on gpu 0')
+    parser.add_argument('--max_eval_steps', type=int, default=-1,
+                        help='max eval steps')
+    parser.add_argument('--pretrain_steps', type=int, default=0,
+                        help='number of pretrain steps')
+    parser.add_argument('--start_train_steps', type=int, default=0,
+                        help='starting training step count (default to 0)')
+    parser.add_argument('--patience', type=int, default=0,
+                        help='patience')
+    parser.add_argument('--load', type=str, default='',
+                        help='path to load weight')
+    parser.add_argument('--name', type=str, default='N/A',
+                        help='name of the trial')
+    parser.add_argument('--model_dir',type=str,default='',help='path to saved model for validation')
+
         
     args = parser.parse_args()
     curr_time = strftime("%Y%m%d%H%M%S", localtime())
     if args.mode == 'train':
-        logger_dir = './runs/trellisnet/' + curr_time + '/'
-        model_dir = './models/trellisnet/' + curr_time + '/'
+        logger_dir = './runs/transformers/' + curr_time + '/'
+        model_dir = './models/transformers/' + curr_time + '/'
         os.makedirs(model_dir)
     else:
         logger_dir=None
@@ -513,8 +609,20 @@ if __name__ == "__main__":
     device = torch.device('cuda' if args.cuda else 'cpu')
 
     ntokens = 2
-    model = DEQTransformerLM(n_token=ntokens, n_layer=args.n_layer,
-                             eval_n_layer=args.n_eval_layer, n_head=args.n_head, d_model=args.d_model, d_head=args.d_model, d_inner=args.d_inner, dropout=args.dropout, dropatt=args.dropatt, mem_len=args.mem_len, tgt_len=args.tgt_len, tie_weights=True, d_embed=None)
+    if args.restart:
+        with open(os.path.join(args.restart_dir, 'model.pt'), 'rb') as f:
+            model = torch.load(f)
+
+        model = model.float()
+        model.apply(update_dropout)
+        model.apply(update_dropatt)
+    else:
+        model = DEQTransformerLM(n_token=ntokens, n_layer=args.n_layer,
+                                eval_n_layer=args.n_eval_layer, n_head=args.n_head, d_model=args.d_model, d_head=args.d_model, d_inner=args.d_inner, dropout=args.dropout, dropatt=args.dropatt, mem_len=args.mem_len, tgt_len=args.tgt_len, tie_weights=True, d_embed=None)
+
+        if len(args.load) == 0:
+            model.apply(weights_init)
+            model.word_emb.apply(weights_init)
 
     if args.multi_gpu:
         model = model.to(device)
@@ -526,10 +634,34 @@ if __name__ == "__main__":
         para_model = model.to(device)
 
     loss_fn=nn.MSELoss()
-    params = list(model.parameters())
+    # params = list(model.parameters())
     lr = args.lr
-    optimizer = getattr(optim if args.optim != 'RAdam' else radam, args.optim)(params, lr=lr, weight_decay=args.weight_decay)
-    
+    optimizer = getattr(optim if args.optim != 'RAdam' else radam, args.optim)(model.parameters(), lr=lr, weight_decay=args.weight_decay)
+
+    if args.scheduler == 'cosine':
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, args.max_step, eta_min=args.eta_min)
+    elif args.scheduler == 'inv_sqrt':
+        # originally used for Transformer (in Attention is all you need)
+        def lr_lambda(step):
+            # return a multiplier instead of a learning rate
+            if step == 0 and args.warmup_step == 0:
+                return 1.
+            else:
+                return 1. / (step ** 0.5) if step > args.warmup_step else step / (args.warmup_step ** 1.5)
+        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
+    elif args.scheduler == 'dev_perf':
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+            factor=args.decay_rate, patience=args.patience, min_lr=args.lr_min)
+
+    if args.restart:
+        if os.path.exists(os.path.join(args.restart_dir, 'optimizer.pt')):
+            with open(os.path.join(args.restart_dir, 'optimizer.pt'), 'rb') as f:
+                opt_state_dict = torch.load(f)
+                optimizer.load_state_dict(opt_state_dict)
+        else:
+            print('Optimizer was not saved. Start from scratch.')
+
+
     print("CUDA is ",args.cuda)
     print("Model is TrellisNet-DEQ")
     print("Model dir is", model_dir)
@@ -548,5 +680,5 @@ if __name__ == "__main__":
     _parallel = False
     trainer=Trainer(model=para_model,use_cuda=args.cuda,optimizer=optimizer,\
         train_loader=train_loader,val_loader=val_loader,loss_fn=loss_fn,\
-            num_epochs=args.epochs,writer=None,args=args,modeldir=model_dir, params = params)
+            num_epochs=args.epochs,writer=None,args=args,modeldir=model_dir)
     trainer.run()
