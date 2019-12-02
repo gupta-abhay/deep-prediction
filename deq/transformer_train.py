@@ -621,7 +621,7 @@ if __name__ == "__main__":
         model.apply(update_dropatt)
     else:
         model = DEQTransformerLM(n_token=ntokens, n_layer=args.n_layer,
-                                eval_n_layer=args.n_eval_layer, n_head=args.n_head, d_model=args.d_model, d_head=args.d_model, d_inner=args.d_inner, dropout=args.dropout, dropatt=args.dropatt, mem_len=args.mem_len, tgt_len=args.tgt_len, tie_weights=True, d_embed=None)
+                                eval_n_layer=args.eval_n_layer, n_head=args.n_head, d_model=args.d_model, d_head=args.d_model, d_inner=args.d_inner, dropout=args.dropout, dropatt=args.dropatt, mem_len=args.mem_len, tgt_len=args.tgt_len, tie_weights=True, d_embed=None)
 
         if len(args.load) == 0:
             model.apply(weights_init)
