@@ -99,6 +99,7 @@ class WeightShareSelfAttention(nn.Module):
 
         self.qkv_net = nn.Conv1d(d_model, 3 * n_head * d_head, kernel_size=1, bias=False)
         self.r_net = nn.Conv1d(d_model, n_head * d_head, kernel_size=1, bias=False)
+        self.temp_encoder = nn.Linear(3*d_model, 3*n_head*d_head)
         self.r_w_bias = nn.Parameter(torch.rand(n_head, d_head).uniform_(-0.05, 0.05))
         self.r_r_bias = nn.Parameter(torch.rand(n_head, d_head).uniform_(-0.05, 0.05))
         self.o_net = nn.Conv1d(n_head * d_head, d_model, kernel_size=1)
@@ -161,8 +162,12 @@ class WeightShareSelfAttention(nn.Module):
         r_head_k = self.r_net(pos_emb)
 
         # Input injection
-        print (w_heads.shape, u1ss.shape)
-        w_heads += u1ss
+        # print (w_heads.shape, u1ss.shape)
+        temp_u1ss = u1ss.permute(0,2,1)
+        temp_u1ss = self.temp_encoder(temp_u1ss)
+        temp_u1ss = temp_u1ss.permute(0,2,1)
+        # print (temp_u1ss.shape)
+        w_heads += temp_u1ss
         w_head_q, w_head_k, w_head_v = torch.chunk(w_heads, 3, dim=1)
         w_head_q = w_head_q[:,:,-qlen:]
 
@@ -393,6 +398,7 @@ class DEQTransformerLM(nn.Module):
             n_layer = self.n_layer if self.training or train_step > 0 else self.eval_n_layer
             torch.cuda.empty_cache()
             for i in range(n_layer):
+                # print (z1s.shape, us.shape, z0.shape, pos_emb.shape)
                 z1s = self.func(z1s, us, z0, pos_emb)
         else:
             # Compute the equilibrium via DEQ. When in training mode, we need to register the analytical backward
@@ -420,7 +426,7 @@ class DEQTransformerLM(nn.Module):
             for i in range(len(mems)):
                 mems[i] = mems[i].permute(1,2,0).contiguous()        # bsz x [-1] x seq_len
 
-        print (data.shape, target.shape)
+        # print (data.shape, target.shape)
 
         bsz, qlen, ntoken = data.size()
         mlen = 0 if mems[0].nelement() == 0 else mems[0].size(2)
@@ -458,8 +464,8 @@ if __name__ == '__main__':
                              dropout=0.1, dropatt=0.1, mem_len=100, tgt_len=30, tie_weights=True, d_embed=None).to(dev)
     raw_data = torch.randint(0, 2, (200, 7)).long().to(dev)
 
-    data = torch.randn((3,20,2))
-    target = torch.randn((3,30,2))
+    data = torch.randn((56,20,2))
+    target = torch.randn((56,30,2))
     # data, target = raw_data[:75], raw_data[1:76]
     # data, target = raw_data[:20], raw_data[1:31]
     mems = None
@@ -472,3 +478,5 @@ if __name__ == '__main__':
     # loss = loss.float().mean().type_as(loss)
     # loss.backward()
     # print(model.func.dec_attn.qkv_net.weight.grad)
+
+    # python3 transformer_train.py --cuda --n_layer 2 --eval_n_layer 24 --d_embed 128 --d_model 128 --n_head 12 --d_head 10 --d_inner 500 --dropout 0.1 --dropatt 0.0 --optim Adam --lr 0.00025 --warmup_step 16000 --pretrain_steps 16000 --eval-interval 5000 --max_step 300000 --tgt_len 30 --mem_len 100 --eval_tgt_len 30 --wnorm --f_thres 30 --b_thres 40 --subseq_len 75 --batch_size 56 --mode 'train'
