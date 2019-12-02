@@ -572,6 +572,7 @@ if __name__ == "__main__":
                         help='path to load weight')
     parser.add_argument('--name', type=str, default='N/A',
                         help='name of the trial')
+    parser.add_argument('--mode',type=str,default='train',help='mode: train, test ,validate')
     parser.add_argument('--model_dir',type=str,default='',help='path to saved model for validation')
 
         
