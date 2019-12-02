@@ -125,7 +125,7 @@ class Trainer():
             elif args.scheduler == 'inv_sqrt':
                 scheduler.step(self.train_step)
 
-
+        print()
         return train_loss/num_batches
 
     def val_epoch(self, epoch):
