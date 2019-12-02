@@ -7,14 +7,36 @@ import copy
 sys.path.append('../../')
 
 from modules.optimizations import weight_norm, VariationalDropout, VariationalHidDropout, VariationalAttnDropout
-
-from models.transformers.deq_transformer_forward_backward import TransformerDEQForward, TransformerDEQBackward
+from seq_models.transformers.deq_transformer_forward_backward import TransformerDEQForward, TransformerDEQBackward
 
 from utils.adaptive_embedding import AdaptiveEmbedding
 from utils.positional_embedding import PositionalEmbedding
 from utils.proj_adaptive_softmax import ProjectedAdaptiveLogSoftmax
 from utils.log_uniform_sampler import LogUniformSampler, sample_logits
 
+import pdb
+
+class TimeDistributedLayer(nn.Module):
+    def __init__(self, module, batch_first=False):
+        super(TimeDistributedLayer, self).__init__()
+        self.module = module
+        self.batch_first = batch_first
+
+
+    def forward(self, x):
+        if len(x.size()) <= 2:
+            return self.module(x)
+
+        # Squash samples and timestamps into a single axis
+        x_reshape = x.contiguous().view(-1, x.size(1))
+        y = self.module(x_reshape)
+
+        if self.batch_first:
+            y = y.contiguous().view(x.size(0), -1, y.size(-1))   # (samples, timestamps, output_size)
+        else:
+            y = y.view(-1, x.size(1), y.size(1))                 # (timestamps, samples, output_size)
+
+        return y
 
 class WeightSharePositionwiseFF(nn.Module):
     def __init__(self, d_model, d_inner, dropout, pre_lnorm=False):
@@ -234,7 +256,9 @@ class DEQTransformerLM(nn.Module):
         self.n_head = n_head
         self.d_head = d_head
 
-        self.word_emb = AdaptiveEmbedding(n_token, d_embed, d_model, cutoffs, div_val=div_val)
+        # self.word_emb = AdaptiveEmbedding(n_token, d_embed, d_model, cutoffs, div_val=div_val)
+        self.word_emb = nn.Linear(self.n_token, d_model)
+        self.decoder = nn.Linear(d_model, self.n_token)
         self.iodrop = VariationalDropout()
         self.dropout = dropout
         self.drop = VariationalHidDropout(dropout=dropout)
@@ -263,20 +287,22 @@ class DEQTransformerLM(nn.Module):
         self.deq = TransformerDEQForward(self.func)
         self.deqback = TransformerDEQBackward(self.func, self.func_copy)
 
+        self.tdst_output = TimeDistributedLayer(nn.Linear(20,30), batch_first=True)
+
         # use adaptive softmax (including standard softmax)
         # (Note: To use sample softmax, refer to the Transformer-XL implementation)
-        self.crit = ProjectedAdaptiveLogSoftmax(n_token, d_embed, d_model, cutoffs, div_val=div_val)
+        # self.crit = ProjectedAdaptiveLogSoftmax(n_token, d_embed, d_model, cutoffs, div_val=div_val)
 
-        if tie_weights:
-            for i in range(len(self.crit.out_layers)):
-                self.crit.out_layers[i].weight = self.word_emb.emb_layers[i].weight
+        # if tie_weights:
+        #     for i in range(len(self.crit.out_layers)):
+        #         self.crit.out_layers[i].weight = self.word_emb.emb_layers[i].weight
 
-        if tie_projs:
-            for i, tie_proj in enumerate(tie_projs):
-                if tie_proj and div_val == 1 and d_model != d_embed:
-                    self.crit.out_projs[i] = self.word_emb.emb_projs[0]
-                elif tie_proj and div_val != 1:
-                    self.crit.out_projs[i] = self.word_emb.emb_projs[i]
+        # if tie_projs:
+        #     for i, tie_proj in enumerate(tie_projs):
+        #         if tie_proj and div_val == 1 and d_model != d_embed:
+        #             self.crit.out_projs[i] = self.word_emb.emb_projs[0]
+        #         elif tie_proj and div_val != 1:
+        #             self.crit.out_projs[i] = self.word_emb.emb_projs[i]
 
         if len(load) > 0:
             params_dict = torch.load(load)
@@ -337,8 +363,9 @@ class DEQTransformerLM(nn.Module):
         :return: tuple(output sequence, new memory)
         """
         # Assume dec_inp has shape (qlen x bsz)
-        dec_inp = dec_inp.t()                              
-        bsz, qlen = dec_inp.size()
+        # dec_inp = dec_inp.t()                              
+        # bsz, qlen = dec_inp.size()
+        bsz, qlen, n_token = dec_inp.size()
         word_emb = self.word_emb(dec_inp)
         word_emb = self.iodrop(word_emb, self.dropout)
         u1s = self.inject_conv(word_emb.transpose(1,2))      # bsz x 3*d_model x qlen
@@ -374,7 +401,10 @@ class DEQTransformerLM(nn.Module):
                 z1s = self.deqback(z1s, us, z0, pos_emb=pos_emb, subseq_len=subseq_len, threshold=b_thres, train_step=train_step)
                     
         core_out = self.iodrop(z1s, self.dropout)
-        core_out = core_out.permute(2,0,1).contiguous()       # qlen x bsz x d_model
+        core_out = core_out.permute(0,2,1)
+        core_out = self.tdst_output(core_out)
+        core_out = core_out.permute(0,2,1)
+        core_out = self.decoder(core_out)
         new_mems = self._update_mems(z1s, us, z0, mlen, qlen)
         return core_out, new_mems
 
@@ -388,7 +418,10 @@ class DEQTransformerLM(nn.Module):
         else:
             for i in range(len(mems)):
                 mems[i] = mems[i].permute(1,2,0).contiguous()        # bsz x [-1] x seq_len
-        qlen, bsz = data.size()
+
+        print (data.shape, target.shape)
+
+        bsz, qlen, ntoken = data.size()
         mlen = 0 if mems[0].nelement() == 0 else mems[0].size(2)
         klen = mlen + qlen
         
@@ -397,38 +430,44 @@ class DEQTransformerLM(nn.Module):
         self.func.reset(bsz, qlen, klen)
         self.func_copy.copy(self.func)
 
-        tgt_len = target.size(0)
+        bsz, tgt_len, ntoken = target.size()
+
         subseq_len = kwargs.get('subseq_len', 75)
         f_thres = kwargs.get('f_thres', 30)
         b_thres = kwargs.get('b_thres', 40)
         hidden, new_mems = self._forward(data, subseq_len=subseq_len, mems=mems, 
                                          f_thres=f_thres, b_thres=b_thres, train_step=train_step)
         
-        pred_hid = hidden[-tgt_len:]
-        loss = self.crit(pred_hid.view(-1, pred_hid.size(-1)), target.view(-1))
-        loss = loss.view(tgt_len, -1)
+        
+        return hidden, new_mems
+        # loss = self.crit(pred_hid.view(-1, pred_hid.size(-1)), target.view(-1))
+        # loss = loss.view(tgt_len, -1)
 
-        if new_mems is None:
-            return [loss]
-        else:
-            return [loss] + new_mems
+        # if new_mems is None:
+        #     return [loss]
+        # else:
+        #     return [loss] + new_mems
 
 
 if __name__ == '__main__':
-    dev = 'cuda'
-    torch.set_default_tensor_type('torch.cuda.FloatTensor')
-    model = DEQTransformerLM(n_token=500, n_layer=2,
+    dev = 'cpu'
+    torch.set_default_tensor_type('torch.FloatTensor')
+    model = DEQTransformerLM(n_token=2, n_layer=2,
                              eval_n_layer=24, n_head=12, d_model=120, d_head=10, d_inner=500,
-                             dropout=0.1, dropatt=0.1, mem_len=100, tgt_len=100, tie_weights=True, d_embed=None).to(dev)
-    raw_data = torch.randint(0, 500, (200, 7)).long().to(dev)
-    data, target = raw_data[:75], raw_data[1:76]
+                             dropout=0.1, dropatt=0.1, mem_len=100, tgt_len=30, tie_weights=True, d_embed=None).to(dev)
+    raw_data = torch.randint(0, 2, (200, 7)).long().to(dev)
+
+    data = torch.randn((3,20,2))
+    target = torch.randn((3,30,2))
+    # data, target = raw_data[:75], raw_data[1:76]
+    # data, target = raw_data[:20], raw_data[1:31]
     mems = None
     train_step=-1
     model.eval()
 
     model.train()
-    ret = model(data, target, mems=mems, f_thres=50, b_thres=80, train_step=train_step)
-    loss, mems = ret[0], ret[1:]
-    loss = loss.float().mean().type_as(loss)
-    loss.backward()
-    print(model.func.dec_attn.qkv_net.weight.grad)
+    ret, mems = model(data, target, mems=mems, f_thres=50, b_thres=80, train_step=train_step)
+    # loss, mems = ret[0], ret[1:]
+    # loss = loss.float().mean().type_as(loss)
+    # loss.backward()
+    # print(model.func.dec_attn.qkv_net.weight.grad)

@@ -28,11 +28,10 @@ import math
 
 from visualize import viz_predictions
 from data import Argoverse_Data
-from seq_models.trellisnets.deq_trellisnet import DEQTrellisNetLM
+from seq_models.transformers.deq_transformer import DEQTransformerLM
 from modules import radam
 from utils.exp_utils import create_exp_dir
 from utils.data_parallel import BalancedDataParallel
-# from utils.splitcross import *
 
 import resource
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -397,6 +396,16 @@ if __name__ == "__main__":
                         help='total sequence length')
     parser.add_argument('--subseq_len', type=int, default=75,
                         help='length of subsequence processed each time by DEQ')
+    parser.add_argument('--tgt_len', type=int, default=150,
+                    help='number of tokens to predict')
+    parser.add_argument('--eval_tgt_len', type=int, default=150,
+                        help='number of tokens to predict for evaluation')
+    parser.add_argument('--mem_len', type=int, default=150,
+                        help='length of the retained previous heads')
+    parser.add_argument('--subseq_len', type=int, default=0,
+                        help='length of subsequence processed each time by DEQ')
+    parser.add_argument('--local_size', type=int, default=0,
+                        help='local horizon size')
 
     # Regularizations
     parser.add_argument('--dropout', type=float, default=0.1,
@@ -456,6 +465,19 @@ if __name__ == "__main__":
     parser.add_argument('--mode',type=str,default='train',help='mode: train, test ,validate')
     parser.add_argument('--model_dir',type=str,default='',help='path to saved model for validation')
 
+    parser.add_argument('--eval_n_layer', type=int, default=12,
+                    help='number of total layers at evaluation')
+    parser.add_argument('--n_head', type=int, default=10,
+                        help='number of heads (default: 10)')
+    parser.add_argument('--d_head', type=int, default=50,
+                        help='head dimension (default: 50)')
+    parser.add_argument('--d_embed', type=int, default=-1,
+                        help='embedding dimension (default: match d_model)')
+    parser.add_argument('--d_model', type=int, default=500,
+                        help='model dimension (default: 500)')
+    parser.add_argument('--d_inner', type=int, default=8000,
+                        help='inner dimension in the position-wise feedforward block (default: 8000)')
+
         
     args = parser.parse_args()
     curr_time = strftime("%Y%m%d%H%M%S", localtime())
@@ -478,11 +500,6 @@ if __name__ == "__main__":
 
     assert args.batch_size % args.batch_chunk == 0
 
-    # args.work_dir = '{}-{}'.format(args.work_dir, args.dataset)
-    # args.work_dir = os.path.join(args.work_dir, time.strftime('%Y%m%d-%H%M%S'))
-    # logging = create_exp_dir(model_dir,
-    #     scripts_to_save=['train_trellisnet.py', 'models/trellisnets/deq_trellisnet.py'], debug=args.debug)
-
     # Set the random seed manually for reproducibility.
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -496,20 +513,16 @@ if __name__ == "__main__":
     device = torch.device('cuda' if args.cuda else 'cpu')
 
     ntokens = 2
-    model = DEQTrellisNetLM(n_token=ntokens, n_layer=args.n_layer, ninp=args.d_embed, nhid=args.nhid, nout=args.nout, 
-                        kernel_size=args.ksize, emb_dropout=args.emb_dropout, dropouti=args.dropouti, dropout=args.dropout, 
-                        dropouth=args.dropouth, wdrop=args.wdrop, wnorm=args.wnorm, tie_weights=args.tied, 
-                        pretrain_steps=args.pretrain_steps, dilation=args.dilation, load=args.load)
+    model = DEQTransformerLM(n_token=ntokens, n_layer=args.n_layer,
+                             eval_n_layer=args.n_eval_layer, n_head=args.n_head, d_model=args.d_model, d_head=args.d_model, d_inner=args.d_inner, dropout=args.dropout, dropatt=args.dropatt, mem_len=args.mem_len, tgt_len=args.tgt_len, tie_weights=True, d_embed=None)
 
     if args.multi_gpu:
-        print ("in here 1")
         model = model.to(device)
         if args.gpu0_bsz >= 0:
             para_model = BalancedDataParallel(args.gpu0_bsz // args.batch_chunk, model, dim=1).to(device)   # Batch dim is dim 1
         else:
             para_model = nn.DataParallel(model, dim=1).to(device)
     else:
-        print ("in here 2")
         para_model = model.to(device)
 
     loss_fn=nn.MSELoss()
