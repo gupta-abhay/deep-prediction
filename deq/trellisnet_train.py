@@ -83,108 +83,102 @@ class Trainer():
 
     
     def train_epoch(self):
-        try:
-            self.model.train()
-            subseq_len = args.subseq_len
-            train_loss = 0
-            mems = []
-            num_batches=len(self.train_loader.batch_sampler)
+        self.model.train()
+        subseq_len = args.subseq_len
+        train_loss = 0
+        mems = []
+        num_batches=len(self.train_loader.batch_sampler)
 
-            for i_batch, traj_dict in enumerate(self.train_loader):
-                self.optimizer.zero_grad()
-                if mems:
-                    mems[0] = mems[0].detach()
+        for i_batch, traj_dict in enumerate(self.train_loader):
+            self.optimizer.zero_grad()
+            if mems:
+                mems[0] = mems[0].detach()
 
-                data = traj_dict['train_agent']
-                target = traj_dict['gt_agent']
+            data = traj_dict['train_agent']
+            target = traj_dict['gt_agent']
 
-                if self.use_cuda:
-                    data = data.cuda()
-                    target = target.cuda()
-                
-                (_, _, pred_traj), mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
-                                        b_thres=args.b_thres, subseq_len=subseq_len, decode=True)
+            if self.use_cuda:
+                data = data.cuda()
+                target = target.cuda()
+            
+            (_, _, pred_traj), mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
+                                    b_thres=args.b_thres, subseq_len=subseq_len, decode=True)
 
-                loss = self.loss_fn(pred_traj, target)
-                loss.backward()
-                train_loss += loss.item()
+            loss = self.loss_fn(pred_traj, target)
+            loss.backward()
+            train_loss += loss.item()
 
-                avg_loss = float(train_loss) / (i_batch+1)
-                print(f"Training Iter {i_batch+1}/{num_batches} Avg Loss {avg_loss:.4f}",end="\r")
+            avg_loss = float(train_loss) / (i_batch+1)
+            print(f"Training Iter {i_batch+1}/{num_batches} Avg Loss {avg_loss:.4f}",end="\r")
 
-                torch.nn.utils.clip_grad_norm(self.params, args.clip)
-                self.optimizer.step()
-                self.train_step += 1
+            torch.nn.utils.clip_grad_norm(self.params, args.clip)
+            self.optimizer.step()
+            self.train_step += 1
 
-            return train_loss/num_batches
-        except Exception as e:
-            print (e)
+        return train_loss/num_batches
         
 
     def val_epoch(self, epoch):
-        try:
-            subseq_len = args.subseq_len
-            val_loss = 0
-            mems = []
-            num_batches=len(self.train_loader.batch_sampler)
+        subseq_len = args.subseq_len
+        val_loss = 0
+        mems = []
+        num_batches=len(self.train_loader.batch_sampler)
+        
+        ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec=(0,0,0,0)
+        ade_one_sec_avg, fde_one_sec_avg ,ade_three_sec_avg, fde_three_sec_avg = (0,0,0,0)
+        no_samples=0
+        
+        for i_batch,traj_dict in enumerate(self.val_loader):
+            if mems:
+                mems[0] = mems[0].detach()
             
-            ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec=(0,0,0,0)
-            ade_one_sec_avg, fde_one_sec_avg ,ade_three_sec_avg, fde_three_sec_avg = (0,0,0,0)
-            no_samples=0
+            data = traj_dict['train_agent']
+            target = traj_dict['gt_agent']
+
+            if self.use_cuda:
+                data = data.cuda()
+                target = target.cuda()
             
-            for i_batch,traj_dict in enumerate(self.val_loader):
-                if mems:
-                    mems[0] = mems[0].detach()
-                
-                data = traj_dict['train_agent']
-                target = traj_dict['gt_agent']
+            (_, _, pred_traj), mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
+                                    b_thres=args.b_thres, subseq_len=subseq_len, decode=True)
 
-                if self.use_cuda:
-                    data = data.cuda()
-                    target = target.cuda()
-                
-                (_, _, pred_traj), mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
-                                        b_thres=args.b_thres, subseq_len=subseq_len, decode=True)
-
-                loss = self.loss_fn(pred_traj, target)
-                val_loss += loss.item()
-                batch_samples = target.shape[0]
-                
-                ade_one_sec+=sum([get_ade(pred_traj[i,:10,:],target[i,:10,:]) for i in range(batch_samples)])
-                fde_one_sec+=sum([get_fde(pred_traj[i,:10,:],target[i,:10,:]) for i in range(batch_samples)])
-                ade_three_sec+=sum([get_ade(pred_traj[i,:,:],target[i,:,:]) for i in range(batch_samples)])
-                fde_three_sec+=sum([get_fde(pred_traj[i,:,:],target[i,:,:]) for i in range(batch_samples)])
-                
-                no_samples+=batch_samples
-                ade_one_sec_avg = float(ade_one_sec)/no_samples
-                ade_three_sec_avg = float(ade_three_sec)/no_samples
-                fde_one_sec_avg = float(fde_one_sec)/no_samples
-                fde_three_sec_avg = float(fde_three_sec)/no_samples
-
-                print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {val_loss/(i_batch+1):.4f} \
-                One sec:- ADE:{ade_one_sec/(no_samples):.4f} FDE: {fde_one_sec/(no_samples):.4f}\
-                Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}", end="\r")
-
-                _filename = self.model_dir + 'best-model.pt'
-
-                if ade_three_sec_avg < self.best_3_ade and fde_three_sec_avg < self.best_3_fde:    
-                    torch.save({
-                        'epoch': epoch,
-                        'model_state_dict': model.state_dict(),
-                        'opt_state_dict': optimizer.state_dict(),
-                        'loss': val_loss/(i_batch+1)
-                    }, _filename)
-
-                    self.best_1_ade = ade_one_sec_avg
-                    self.best_1_fde = fde_one_sec_avg
-                    self.best_3_ade = ade_three_sec_avg
-                    self.best_3_fde = fde_three_sec_avg
-                    self.best_model_updated=True
+            loss = self.loss_fn(pred_traj, target)
+            val_loss += loss.item()
+            batch_samples = target.shape[0]
             
-            print()
-            return val_loss/(num_batches), ade_one_sec/no_samples,fde_one_sec/no_samples,ade_three_sec/no_samples,fde_three_sec/no_samples
-        except Exception as e:
-            print (e)
+            ade_one_sec+=sum([get_ade(pred_traj[i,:10,:],target[i,:10,:]) for i in range(batch_samples)])
+            fde_one_sec+=sum([get_fde(pred_traj[i,:10,:],target[i,:10,:]) for i in range(batch_samples)])
+            ade_three_sec+=sum([get_ade(pred_traj[i,:,:],target[i,:,:]) for i in range(batch_samples)])
+            fde_three_sec+=sum([get_fde(pred_traj[i,:,:],target[i,:,:]) for i in range(batch_samples)])
+            
+            no_samples+=batch_samples
+            ade_one_sec_avg = float(ade_one_sec)/no_samples
+            ade_three_sec_avg = float(ade_three_sec)/no_samples
+            fde_one_sec_avg = float(fde_one_sec)/no_samples
+            fde_three_sec_avg = float(fde_three_sec)/no_samples
+
+            print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {val_loss/(i_batch+1):.4f} \
+            One sec:- ADE:{ade_one_sec/(no_samples):.4f} FDE: {fde_one_sec/(no_samples):.4f}\
+            Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}", end="\r")
+
+            _filename = self.model_dir + 'best-model.pt'
+
+            if ade_three_sec_avg < self.best_3_ade and fde_three_sec_avg < self.best_3_fde:    
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'opt_state_dict': optimizer.state_dict(),
+                    'loss': val_loss/(i_batch+1)
+                }, _filename)
+
+                self.best_1_ade = ade_one_sec_avg
+                self.best_1_fde = fde_one_sec_avg
+                self.best_3_ade = ade_three_sec_avg
+                self.best_3_fde = fde_three_sec_avg
+                self.best_model_updated=True
+        
+        print()
+        return val_loss/(num_batches), ade_one_sec/no_samples,fde_one_sec/no_samples,ade_three_sec/no_samples,fde_three_sec/no_samples
 
     def validate_model(self, model_path):
         # total_loss=0

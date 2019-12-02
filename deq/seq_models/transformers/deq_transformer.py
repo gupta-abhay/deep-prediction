@@ -161,6 +161,7 @@ class WeightShareSelfAttention(nn.Module):
         r_head_k = self.r_net(pos_emb)
 
         # Input injection
+        print (w_heads.shape, u1ss.shape)
         w_heads += u1ss
         w_head_q, w_head_k, w_head_v = torch.chunk(w_heads, 3, dim=1)
         w_head_q = w_head_q[:,:,-qlen:]
