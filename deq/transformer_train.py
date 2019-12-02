@@ -509,6 +509,8 @@ if __name__ == "__main__":
                         help='length of the retained previous heads')
     parser.add_argument('--subseq_len', type=int, default=0,
                         help='length of subsequence processed each time by DEQ')
+    parser.add_argument('--subseq_len', type=int, default=100,
+                        help='length of subsequence processed each time by DEQ')
     parser.add_argument('--local_size', type=int, default=0,
                         help='local horizon size')
 
