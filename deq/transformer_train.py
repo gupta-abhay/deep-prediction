@@ -576,6 +576,8 @@ if __name__ == "__main__":
                         help='name of the trial')
     parser.add_argument('--mode',type=str,default='train',help='mode: train, test ,validate')
     parser.add_argument('--model_dir',type=str,default='',help='path to saved model for validation')
+    parser.add_argument('--epochs', type=int, default=25,
+                        help='upper epoch limit (default: 25)')
 
         
     args = parser.parse_args()
