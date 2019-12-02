@@ -9,8 +9,8 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 import torch.nn as nn
 
-from data import Argoverse_Data
-from model import LSTMModel, TCNModel
+from data import Argoverse_Data,collate_traj
+from model import LSTMModel, TCNModel, Social_Model
 from argoverse.evaluation.eval_forecasting import get_ade, get_fde
 import matplotlib.pyplot as plt
 import argparse
@@ -19,27 +19,6 @@ from time import localtime, strftime
 from logger import TensorLogger
 import numpy as np
 import os
-
-def data_visualization(dataloader,social=False):
-    for i_batch, traj_dict in enumerate(dataloader):
-        input_traj=traj_dict['train_agent']
-        gt_traj=traj_dict['gt_agent']
-        
-        plt.grid(True)
-        plt.plot(input_traj[0,:,0].numpy(),input_traj[0,:,1].numpy(),'g-o',gt_traj[0,:,0].numpy(),gt_traj[0,:,1].numpy(),'r-o')
-
-        if social:         
-            neighbour_traj=traj_dict['neighbour']
-            for index in range(len(neighbour_traj)):
-                print(f"Shape of neighbour trajectory {index} is ",neighbour_traj[index]['trajectory'].shape)
-
-        plt.show(block=False)
-        
-        plt.pause(5)
-        plt.clf()
-        if i_batch==5:
-            exit()
-
 
 class Trainer():
     def __init__(self,model,cuda,parallel,optimizer,train_loader,val_loader,test_loader,loss_fn,num_epochs,writer,args,modeldir):
@@ -78,24 +57,31 @@ class Trainer():
         for i_batch,traj_dict in enumerate(self.train_loader):
             input_traj=traj_dict['train_agent']
             gr_traj=traj_dict['gt_agent']
+            if self.args.social:
+                neighbour_traj=traj_dict['neighbour']
             if self.cuda:
                 input_traj=input_traj.cuda()
                 gr_traj=gr_traj.cuda()
-            pred_traj=self.model(input_traj)
+            if self.args.social and self.cuda:
+                neighbour_traj=[neighbour.cuda() for neighbour in neighbour_traj]            
+            if self.args.social:
+                pred_traj=self.model({'agent_traj':input_traj,'neighbour_traj':neighbour_traj})
+            else:   
+                pred_traj=self.model(input_traj)
+            
             loss=self.loss_fn(pred_traj,gr_traj)
             total_loss=total_loss+loss.data
             batch_samples=input_traj.shape[0]
             no_samples+=batch_samples
             avg_loss = float(total_loss)/(i_batch+1)
             self.writer.scalar_summary('Train/AvgLoss', avg_loss, i_batch+1)
-            
-            if i_batch+1 % self.args.train_log_interval == 0:
+            if (i_batch+1) % self.args.train_log_interval == 0:
                 print(f"Training Iter {i_batch+1}/{num_batches} Avg Loss {total_loss/(i_batch+1)}",end="\r")
-            
+                # print(f"Training Iter {i_batch+1}/{num_batches} Avg Loss {total_loss/(i_batch+1)}"
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-        
+        print()
         return total_loss/(num_batches)
     
     
@@ -112,10 +98,17 @@ class Trainer():
         for i_batch,traj_dict in enumerate(self.val_loader):
             input_traj=traj_dict['train_agent']
             gr_traj=traj_dict['gt_agent']
+            if self.args.social:
+                neighbour_traj=traj_dict['neighbour']
             if self.cuda:
                 input_traj=input_traj.cuda()
                 gr_traj=gr_traj.cuda()
-            pred_traj=self.model(input_traj)
+            if self.args.social and self.cuda:
+                neighbour_traj=[neighbour.cuda() for neighbour in neighbour_traj]
+            if self.args.social:
+                pred_traj=self.model({'agent_traj':input_traj,'neighbour_traj':neighbour_traj})
+            else:   
+                pred_traj=self.model(input_traj)
             loss=self.loss_fn(pred_traj,gr_traj)
             total_loss=total_loss+loss.data
             batch_samples=input_traj.shape[0]
@@ -132,7 +125,7 @@ class Trainer():
 
             self.writer.scalar_summary('Val/AvgLoss', float(total_loss)/(i_batch+1), i_batch+1)
 
-            if i_batch+1 % self.args.val_log_interval == 0:
+            if (i_batch+1) % self.args.val_log_interval == 0:
                 print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {total_loss/(i_batch+1):.4f} \
                 One sec:- ADE:{ade_one_sec/(no_samples):.4f} FDE: {fde_one_sec/(no_samples):.4f}\
                 Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}",end="\r")
@@ -151,7 +144,7 @@ class Trainer():
                 self.best_1_fde = fde_one_sec_avg
                 self.best_3_ade = ade_three_sec_avg
                 self.best_3_fde = fde_three_sec_avg
-            
+        print()
         return total_loss/(num_batches), ade_one_sec/no_samples,fde_one_sec/no_samples,ade_three_sec/no_samples,fde_three_sec/no_samples
     
 
@@ -165,7 +158,17 @@ class Trainer():
         for i_batch,traj_dict in enumerate(self.test_loader):
             input_traj=traj_dict['train_agent']
             gr_traj=traj_dict['gt_agent']
-            pred_traj=self.model(input_traj)
+            if self.args.social:
+                neighbour_traj=traj_dict['neighbour']
+            if self.cuda:
+                input_traj=input_traj.cuda()
+                gr_traj=gr_traj.cuda()
+            
+            if self.args.social:
+                neighbour_traj=traj_dict['neighbour']
+                pred_traj=self.model({'agent_traj':input_traj,'neighbour_traj':neighbour_traj})
+            else:   
+                pred_traj=self.model(input_traj)
             batch_samples=input_traj.shape[0]
             no_samples+=batch_samples
 
@@ -174,7 +177,7 @@ class Trainer():
             ade_three_sec+=sum([get_ade(pred_traj[i,:,:],gr_traj[i,:,:]) for i in range(batch_samples)])
             fde_three_sec+=sum([get_fde(pred_traj[i,:,:],gr_traj[i,:,:]) for i in range(batch_samples)])
 
-            if i_batch+1 % self.args.test_log_interval == 0:
+            if (i_batch+1) % self.args.test_log_interval == 0:
                 print(f"Test Iter {i_batch+1}/{num_batches} \
                     One sec:- ADE:{ade_one_sec/(no_samples):.4f} FDE: {fde_one_sec/(no_samples):.4f}\
                     Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}",end="\r")
@@ -184,6 +187,11 @@ class Trainer():
             fde_one_sec_avg = float(fde_one_sec)/no_samples
             fde_three_sec_avg = float(fde_three_sec)/no_samples
 
+            self.writer.scalar_summary('Test/1ADE', ade_one_sec_avg, i_batch+1)
+            self.writer.scalar_summary('Test/3ADE', ade_three_sec_avg, i_batch+1)
+            self.writer.scalar_summary('Test/1FDE', fde_one_sec_avg, i_batch+1)
+            self.writer.scalar_summary('Test/3FDE', fde_three_sec_avg, i_batch+1)
+        print()
         return ade_one_sec/no_samples,fde_one_sec/no_samples,ade_three_sec/no_samples,fde_three_sec/no_samples
     
     
@@ -213,6 +221,7 @@ if __name__ == "__main__":
                         help='batch size (default: 32)')
     parser.add_argument('--cuda', action='store_false',
                         help='use CUDA (default: True)')
+    parser.add_argument('--social',action='store_true',help='use neighbour data as well. default: False')
     parser.add_argument('--dropout', type=float, default=0.2,
                         help='dropout applied to layers (default: 0.2)')
     parser.add_argument('--lr', type=float, default=0.001,
@@ -254,28 +263,42 @@ if __name__ == "__main__":
         model_dir = './models/' + args.model + '/' + curr_time + '/'
         channel_sizes = [args.nhid] * args.levels
         model = TCNModel(args.nhid, args.opsize, channel_sizes, args.ksize, args.dropout, 128)
+    elif args.model == 'SOCIAL':
+        logger_dir = './runs/' + args.model + '/' + curr_time + '/'
+        model_dir = './models/' + args.model + '/' + curr_time + '/'
+        model = Social_Model()
     
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
 
     tbLogger = TensorLogger(_logdir=logger_dir)
     optimizer = torch.optim.Adam(model.parameters(), lr = args.lr)
-    
+    print("CUDA is ",args.cuda)
+    print("Model is ",args.model)
+    print("Social is", args.social)
     # Load data module
-    argoverse_train=Argoverse_Data('data/train/data/')
-    argoverse_val=Argoverse_Data('data/val/data')
-    argoverse_test = Argoverse_Data('data/test_obs/data')
-
-    train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
-                        shuffle=True, num_workers=2)
-    val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
-                        shuffle=True, num_workers=2)
-    test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
-                        shuffle=True, num_workers=2)
+    argoverse_train=Argoverse_Data('data/train/data/',social=args.social)
+    argoverse_val=Argoverse_Data('data/val/data',social=args.social)
+    argoverse_test = Argoverse_Data('data/test_obs/data',social=args.social)
+    if args.social:
+        train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
+                        shuffle=True, num_workers=2,collate_fn=collate_traj)
+        val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
+                        shuffle=True, num_workers=2,collate_fn=collate_traj)
+        test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
+                        shuffle=True, num_workers=2,collate_fn=collate_traj)
+    else:
+        train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
+                            shuffle=True, num_workers=2)
+        val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
+                            shuffle=True, num_workers=2)
+        test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
+                            shuffle=True, num_workers=2)
 
     # train model and losses
     loss_fn=nn.MSELoss()
-    _cuda = True
-    _parallel = True
-    trainer=Trainer(model=model,cuda=_cuda,parallel=_parallel,optimizer=optimizer,train_loader=train_loader,val_loader=val_loader,test_loader=test_loader,loss_fn=loss_fn,num_epochs=args.epochs,writer=tbLogger,args=args,modeldir=model_dir)
+    # _cuda = a
+    
+    _parallel = False
+    trainer=Trainer(model=model,cuda=args.cuda,parallel=_parallel,optimizer=optimizer,train_loader=train_loader,val_loader=val_loader,test_loader=test_loader,loss_fn=loss_fn,num_epochs=args.epochs,writer=tbLogger,args=args,modeldir=model_dir)
     trainer.train()

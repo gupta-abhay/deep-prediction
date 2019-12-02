@@ -1,37 +1,85 @@
 from argoverse.map_representation.map_api import ArgoverseMap
 from argoverse.data_loading.argoverse_forecasting_loader import ArgoverseForecastingLoader
+from argoverse.visualization.visualize_sequences import viz_sequence
+from argoverse.utils.centerline_utils import get_nt_distance,get_oracle_from_candidate_centerlines,get_xy_from_nt_seq
 import glob
 from torch.utils.data import Dataset, DataLoader
 import torch
+import math
 import numpy as np
+from random import shuffle
+import os
+from shapely.geometry import LineString, Point
+from shapely.ops import nearest_points
+
 ''' Need better data representation as compared to just the trajectories.
 Feed ground truth of major trajectories point.
 Center lines.
-
 '''
+def collate_traj_lanecentre(list_data):
+    train_agent=[]
+    gt_agent=[]
+    centerline=[]
+    dict_collate={}
+    dict_input=list_data[0]
+    for key in dict_input.keys():
+        v=[]
+        # print("SOlving key", key)
+        for data in list_data:
+            # print(key,data[key].shape)
+            v.append(data[key])
+        if (key is 'centerline') or (key is 'city'):
+            dict_collate[key]=v
+        elif key is 'seq_index':
+            dict_collate[key]=torch.Tensor(v)
+        else:
+            dict_collate[key]=torch.stack(v,dim=0)
+    return dict_collate
+    # return {'train_agent': torch.stack(train_agent,dim=0),'gt_agent': torch.stack(gt_agent) , 'neighbour':neighbour} 
+
+def collate_traj_social(list_data):
+    train_agent=[]
+    gt_agent=[]
+    neighbour=[]
+    for data in list_data:
+        train_agent.append(data['train_agent'])
+        gt_agent.append(data['gt_agent'])
+        neighbour.append(data['neighbour'])
+    
+    return {'train_agent': torch.stack(train_agent,dim=0),'gt_agent': torch.stack(gt_agent) , 'neighbour':neighbour} 
+
+def collate_traj_social_test(list_data):
+    seq_index=[]
+    train_agent=[]
+    neighbour=[]
+    for data in list_data:
+        train_agent.append(data['train_agent'])
+        neighbour.append(data['neighbour'])
+        seq_index.append(data['seq_index'])
+    return {'seq_index': torch.stack(seq_index,dim=0), 'train_agent': torch.stack(train_agent,dim=0) , 'neighbour':neighbour} 
+    
 
 class Argoverse_Data(Dataset):
-    def __init__(self,root_dir='argoverse-data/forecasting_sample/data',social=False,train_seq_size=20):
+    def __init__(self,root_dir='argoverse-data/forecasting_sample/data',train_seq_size=20,cuda=False,test=False):
         super(Argoverse_Data,self).__init__()
         self.root_dir=root_dir
         self.afl = ArgoverseForecastingLoader(self.root_dir)
-        
         self.seq_paths=glob.glob(f"{self.root_dir}/*.csv")
-        self.social=social
         self.train_seq_size=train_seq_size
-    
+        self.use_cuda=cuda
+        self.mode_test=test
 
     def __len__(self):
         return len(self.seq_paths)
-    
 
-    def transform(self,trajectory):
+    def old_transform(self,trajectory):
         def rotation_angle(x,y):
             angle=np.arctan(abs(y/x))
             direction= -1* np.sign(x*y)
             return direction*angle
+        translation=trajectory[0]
         trajectory=trajectory-trajectory[0]
-        theta=rotation_angle(trajectory[20,0],trajectory[20,1])
+        theta=rotation_angle(trajectory[19,0],trajectory[19,1])
         c, s = np.cos(theta), np.sin(theta)
         R = np.array([[c,-s], [s, c]])
         trajectory=torch.tensor(trajectory)
@@ -39,44 +87,57 @@ class Argoverse_Data(Dataset):
         trajectory=np.matmul(R,trajectory)
         trajectory=torch.tensor(trajectory)
         trajectory=trajectory.permute(1,0)
-        return trajectory[0:self.train_seq_size].float(),trajectory[self.train_seq_size:].float()
+        if self.mode_test:
+            return trajectory[0:self.train_seq_size].float(),R,translation
+        else:
+            return trajectory[0:self.train_seq_size].float(),trajectory[self.train_seq_size:].float()
 
-    
-    def transform_social(self,agent_trajectory,neighbour_trajectories):
+    def transform(self,trajectory):
         def rotation_angle(x,y):
             angle=np.arctan(abs(y/x))
             direction= -1* np.sign(x*y)
             return direction*angle
-        trajectory_mean=agent_trajectory[0]
-        trajectory_rotation=rotation_angle(agent_trajectory[20,0],agent_trajectory[20,1])
-        c, s = np.cos(trajectory_rotation), np.sin(trajectory_rotation)
-        R = np.array([[c,-s], [s, c]])
-
-        agent_trajectory=agent_trajectory-trajectory_mean
-        agent_trajectory=torch.tensor(agent_trajectory)
-        agent_trajectory=agent_trajectory.permute(1,0)
-        agent_trajectory=np.matmul(R,agent_trajectory)
-        agent_trajectory=torch.tensor(agent_trajectory)
-        agent_trajectory=agent_trajectory.permute(1,0)
         
-        normalized_neighbour_trajectories=[]
-        # normalized_gt_neighbour_trajectories=[]
-        for neighbour_trajectory in neighbour_trajectories:
-            trajectory=neighbour_trajectory['trajectory']
-            # if start_index<15:
-            #     continue
-            # print("The shape of neighbour trajectory is ",trajectory.shape)
-            # print(f"Start index: {start_index}. End index: {end_index}")
-            trajectory=trajectory-trajectory_mean
-            trajectory=torch.tensor(trajectory)
-            trajectory=trajectory.permute(1,0)
-            trajectory=np.matmul(R,trajectory)
-            trajectory=torch.tensor(trajectory)
-            trajectory=trajectory.permute(1,0)
-            normalized_neighbour_trajectories.append({'trajectory':trajectory})
+        if self.mode_test:
+            translation=-trajectory[0]
+            train_trajectory=trajectory+translation
+            theta=rotation_angle(train_trajectory[19,0],train_trajectory[19,1])
+            c, s = np.cos(theta), np.sin(theta)
+            R = torch.Tensor([[c,-s], [s, c]]).float()
+            train_trajectory=torch.tensor(train_trajectory).float()
+            train_trajectory=torch.matmul(R,train_trajectory.permute(1,0)).permute(1,0)
 
-        return agent_trajectory[0:self.train_seq_size], agent_trajectory[self.train_seq_size:],normalized_neighbour_trajectories 
-        
+            return train_trajectory,R,torch.Tensor(translation).float()
+        else:
+            old_trajectory=trajectory
+            translation=-trajectory[0]
+            transformed_trajectory=trajectory+translation
+            theta=rotation_angle(transformed_trajectory[19,0],transformed_trajectory[19,1])
+            c, s = np.cos(theta), np.sin(theta)
+            R = torch.Tensor([[c,-s], [s, c]]).float()
+            transformed_trajectory=torch.tensor(transformed_trajectory).float()
+            transformed_trajectory=torch.matmul(R,transformed_trajectory.permute(1,0)).permute(1,0)
+            train_trajectory=transformed_trajectory[:self.train_seq_size]
+            gt_transformed_trajectory=transformed_trajectory[self.train_seq_size:]
+            actual_gt_trajectory=torch.Tensor(trajectory[self.train_seq_size:]).float()
+            return train_trajectory,gt_transformed_trajectory,actual_gt_trajectory,R,torch.Tensor(translation).float()
+
+
+    def inverse_transform_one(self,trajectory,R,t):
+        out=torch.matmul(R,trajectory.permute(1,0)).permute(1,0)
+        return out+ t.reshape(1,2)
+
+
+    def inverse_transform(self,trajectory,traj_dict):
+        R=traj_dict['rotation']
+        t=traj_dict['translation']
+        if self.use_cuda:
+            R=R.cuda()
+            t=t.cuda()
+        out=torch.matmul(R.permute(0,2,1),trajectory.permute(0,2,1)).permute(0,2,1)
+        out= out - t.reshape(t.shape[0],1,2)
+        return out
+
 
     def __getitem__(self,index):
         '''
@@ -87,10 +148,164 @@ class Argoverse_Data(Dataset):
 
         current_loader = self.afl.get(self.seq_paths[index])
         agent_traj=current_loader.agent_traj
-        if self.social:
-            neighbours_traj=current_loader.neighbour_traj()
+        
+        if self.mode_test:
+            agent_train_traj,R,translation=self.transform(agent_traj)
+            seq_index=int(os.path.basename(self.seq_paths[index]).split('.')[0])
+            return {'seq_index': seq_index,'train_agent':agent_train_traj,'rotation':R,'translation':translation,'city':current_loader.city}
+        else:
+            agent_train_traj,agent_gt_traj,agent_unnorm_gt_traj,R,translation=self.transform(agent_traj)
+            return {'seq_path':self.seq_paths[index],'train_agent':agent_train_traj, 'gt_agent':agent_gt_traj,'gt_unnorm_agent':agent_unnorm_gt_traj,'rotation':R,'translation':translation,'city':current_loader.city}
+
+
+class Argoverse_Social_Data(Argoverse_Data):
+    def __init__(self,root_dir='argoverse-data/forecasting_sample/data',train_seq_size=20,agent_rel=True,cuda=False,test=False):
+        super(Argoverse_Social_Data,self).__init__(root_dir,train_seq_size,cuda,test)
+        self.agent_rel=agent_rel
+
+    def transform_social(self,agent_trajectory,neighbour_trajectories):
+        def rotation_angle(x,y):
+            angle=np.arctan(abs(y/x))
+            direction= -1* np.sign(x*y)
+            return direction*angle
+        trajectory_mean=agent_trajectory[0]
+        trajectory_rotation=rotation_angle(agent_trajectory[19,0],agent_trajectory[19,1])
+        c, s = np.cos(trajectory_rotation), np.sin(trajectory_rotation)
+        R = np.array([[c,-s], [s, c]])
+
+        agent_trajectory=agent_trajectory-trajectory_mean
+        agent_trajectory=torch.tensor(agent_trajectory)
+        agent_trajectory=agent_trajectory.permute(1,0)
+        agent_trajectory=np.matmul(R,agent_trajectory)
+        agent_trajectory=torch.tensor(agent_trajectory)
+        agent_trajectory=agent_trajectory.permute(1,0)
+        agent_trajectory=agent_trajectory.float()
+        normalized_neighbour_trajectories=[]
+        # normalized_gt_neighbour_trajectories=[]
+        for neighbour_trajectory in neighbour_trajectories:
+            trajectory=neighbour_trajectory
+            trajectory=trajectory-trajectory_mean
+            trajectory=torch.tensor(trajectory)
+            trajectory=trajectory.permute(1,0)
+            trajectory=np.matmul(R,trajectory)
+            trajectory=torch.tensor(trajectory)
+            trajectory=trajectory.permute(1,0).float()
+            if self.agent_rel:
+                # import pdb; pdb.set_trace()
+                # print("The shape of trajectory and agent trajectory are ",trajectory.shape,agent_trajectory.shape)
+                trajectory=trajectory-agent_trajectory[:self.train_seq_size,:]
+            normalized_neighbour_trajectories.append(trajectory)
+        if len(normalized_neighbour_trajectories)!= 0:
+            normalized_neighbour_trajectories=torch.stack(normalized_neighbour_trajectories,dim=0)
+        else:
+            normalized_neighbour_trajectories=torch.Tensor()
+            #if self.use_cuda:
+            #    normalized_neighbour_trajectories=normalized_neighbou
+        if self.mode_test:
+            return agent_trajectory[0:self.train_seq_size],normalized_neighbour_trajectories
+        else:
+            return agent_trajectory[0:self.train_seq_size], agent_trajectory[self.train_seq_size:].float(),normalized_neighbour_trajectories 
+
+    def __getitem__(self,index):
+        current_loader = self.afl.get(self.seq_paths[index])
+        agent_traj=current_loader.agent_traj
+        neighbours_traj=current_loader.neighbour_traj()
+        if self.mode_test:
+            agent_train_traj,neighbours_traj=self.transform_social(agent_traj,neighbours_traj)
+            seq_index=int(os.path.basename(self.seq_paths[index]).split('.')[0])
+            #if self.use_cuda:
+            #    agent_train_traj=agent_train_traj.cuda()
+            #    seq_index=seq_index.cuda()
+            return {'seq_index': int(os.path.basename(self.seq_paths[index]).split('.')[0]),'train_agent':agent_train_traj, 'neighbour':neighbours_traj}
+        else:
             agent_train_traj,agent_gt_traj,neighbours_traj=self.transform_social(agent_traj,neighbours_traj)
             return {'train_agent':agent_train_traj, 'gt_agent':agent_gt_traj, 'neighbour':neighbours_traj}
+
+class Argoverse_LaneCentre_Data(Argoverse_Data):
+    def __init__(self,root_dir='argoverse-data//data',avm=None,social=False,train_seq_size=20,cuda=False,test=False):
+        super(Argoverse_LaneCentre_Data,self).__init__(root_dir,train_seq_size,cuda,test)
+        if avm is None:
+            self.avm=ArgoverseMap()
         else:
-            agent_train_traj,agent_gt_traj=self.transform(agent_traj)
-            return {'train_agent':agent_train_traj, 'gt_agent':agent_gt_traj}
+            self.avm=avm
+        self.stationary_threshold=2.0
+        print("Done loading map")
+    # def get_coordinate_from_centerline(self,line,trajectory):
+    #     centerline_cordinates=[]
+    #     for index in len(trajectory):
+    #         tang_dist,norm_dist=get_normal_and_tangential_distance_point(x=trajectory[index,0],y=trajectory[index,1],centerline=line,last= index==len(trajectory)-1)
+    #         centerline_cordinates.append([end_dist-start_dist,nearest_point.distance(point)])
+    #     return np.array(centerline_cordinates)
+    # def __len__(self):
+    #     return 100
+    #     # return len(self.seq_paths)
+    def inverse_transform(self,trajectory,traj_dict):
+        centerline=traj_dict['centerline']
+        if self.use_cuda:
+            trajectory=trajectory.cpu()
+        out=get_xy_from_nt_seq(nt_seq=trajectory,centerlines=centerline)
+        out=torch.Tensor(out).float()
+        if self.use_cuda:
+            out=out.cuda()
+        return out
+        # pass
+
+    def __getitem__(self,index):
+        current_loader = self.afl.get(self.seq_paths[index])
+        # import pdb; pdb.set_trace()
+        # print(current_loader.current_seq)
+        # viz_sequence(current_loader.seq_df, show=True)
+        agent_traj=current_loader.agent_traj
+        # print("Found trajectory")
+        candidate_centerlines = self.avm.get_candidate_centerlines_for_traj(agent_traj, current_loader.city,viz=False)
+        # print("Found centerlines")
+        current_centerline=get_oracle_from_candidate_centerlines(candidate_centerlines,agent_traj)
+        # print("Found oracle centerline")
+        if self.mode_test:
+            # agent_gt_traj=agent_traj[self.train_seq_size:,]
+            seq_index=int(os.path.basename(self.seq_paths[index]).split('.')[0])
+            
+            agent_train_traj=agent_traj[:self.train_seq_size,:]
+            agent_train_traj=get_nt_distance(agent_train_traj,current_centerline)
+            agent_train_traj=torch.Tensor(agent_train_traj).float()
+            # gt_agent=self.get_coordinate_from_centerline(oracle_centerline,agent_train_traj)
+            return {'seq_index': seq_index,'train_agent':agent_train_traj,'centerline':current_centerline,'city':current_loader.city}
+
+        else:
+            agent_train_traj=agent_traj[:self.train_seq_size,:]
+            agent_train_traj=get_nt_distance(agent_train_traj,current_centerline)
+            agent_train_traj=torch.Tensor(agent_train_traj).float()
+
+            agent_gt_traj=agent_traj[self.train_seq_size:,]
+            agent_gt_traj=get_nt_distance(agent_gt_traj,current_centerline)
+            agent_gt_traj=torch.Tensor(agent_gt_traj).float()
+
+            agent_unnorm_gt_traj=torch.Tensor(agent_traj[self.train_seq_size:,]).float()
+
+            return {'train_agent':agent_train_traj, 'gt_agent':agent_gt_traj,'gt_unnorm_agent':agent_unnorm_gt_traj,'centerline':current_centerline,'city':current_loader.city}
+
+
+        
+        # best_centerline=LineString(candidate_centerlines[0])
+        # best_distance=math.inf
+        # if math.sqrt((agent_train_traj[0, 0] - agent_train_traj[-1, 0]) ** 2 + (agent_train_traj[0, 1] - agent_train_traj[-1, 1]) ** 2) < self.stationary_threshold:
+        #     stationary = True
+        #     ## Find the nearest centerline
+        #     final_point=Point(agent_train_traj[-1])
+        #     for centerlines in candidate_centerlines:
+        #         line=LineString(centerlines)
+        #         nearest_point=nearest_points(line,final_point)[0]
+        #         if final_point.distance(nearest_point)>best_distance:
+        #             best_distance=final_point.distance(nearest_point)
+        #             best_centerline=line
+        # else:
+        #     ## Find the cenerline most traveled on 
+        #     stationary = False
+        #     start_point=Point(agent_train_traj[0])
+        #     final_point=Point(agent_train_traj[-1])
+        #     best_distance=math.inf
+        #     for centerlines in candidate_centerlines:
+        #         start_dist = line.project(start_point)
+        #         end_dist = line.project(final_point)
+        #         if end_dist-start_dist>best_distance:
+        #             best_centerline = LineString(centerlines)
