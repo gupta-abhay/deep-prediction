@@ -369,7 +369,7 @@ class Trainer():
                 # avg_loss_train=self.train_epoch()
                 # avg_loss_val,ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec = self.val_epoch(epoch)
                 self.train_epoch()
-                self.val_epoch()
+                self.val_epoch(epoch)
         elif args.mode=="validate":
             self.validate_model(self.model_dir)
     
