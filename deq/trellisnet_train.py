@@ -133,7 +133,7 @@ class Trainer():
                 mems[0] = mems[0].detach()
             
             data = traj_dict['train_agent']
-            target = traj_dict['gt_agent']
+            target = traj_dict['gt_unnorm_agent']
 
             if self.use_cuda:
                 data = data.cuda()
@@ -198,7 +198,7 @@ class Trainer():
                 mems[0] = mems[0].detach()
             
             data = traj_dict['train_agent']
-            target = traj_dict['gt_agent']
+            target = traj_dict['gt_unnorm_agent']
 
             if self.use_cuda:
                 data = data.cuda()
@@ -227,10 +227,15 @@ class Trainer():
             Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}", end="\r")
 
         print()
-        # self.save_top_errors_accuracy(self.model_dir, model_path)
-        # print("Saved error plots")
+        self.save_top_errors_accuracy(self.model_dir, model_path)
+        print("Saved error plots")
 
     def save_top_errors_accuracy(self,model_dir, model_path):
+        subseq_len = args.subseq_len
+        val_loss = 0
+        mems = []
+        num_batches=len(self.val_loader.batch_sampler)
+
         min_loss=np.inf
         max_loss=0
         num_images=10
@@ -249,20 +254,25 @@ class Trainer():
         city_name_min=[]
         seq_path_list_min=[]
 
-
-        print ("here")
-        self.model.load_state_dict(torch.load(model_path+'best-model.pt')['model_state_dict'])
+        self.model.load_state_dict(torch.load(model_path+'trellis-model.pt')['model_state_dict'])
         self.model.eval()
-        num_batches=len(self.val_loader.batch_sampler)
 
         for i_batch,traj_dict in enumerate(self.val_loader):
             print(f"Running {i_batch}/{num_batches}",end="\r")
-            gt_traj=traj_dict['gt_unnorm_agent']
-            train_traj=traj_dict['train_agent']
+
+            if mems:
+                mems[0] = mems[0].detach()
+
+            gt_traj = traj_dict['gt_unnorm_agent']
+            train_traj = traj_dict['train_agent']
+
             if self.use_cuda:
                 train_traj=train_traj.cuda()
+                gt_traj = gt_traj.traj.cuda()
+            
             input_ = self.val_loader.dataset.inverse_transform(train_traj,traj_dict)
-            output = self.model(traj_dict)
+            (_, _, output), mems = self.model(train_traj, gt_traj, mems, train_step=self.train_step, f_thres=args.f_thres,
+                                    b_thres=args.b_thres, subseq_len=subseq_len, decode=True)
             output = self.val_loader.dataset.inverse_transform(output, traj_dict)
             
             if self.use_cuda:
