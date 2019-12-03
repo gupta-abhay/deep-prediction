@@ -304,8 +304,8 @@ class Argoverse_MultiLaneCentre_Data(Argoverse_Data):
         print("Done loading map")
     
     def __len__(self):
-        return 10000
-        # return len(self.seq_paths)
+        # return 10000
+        return len(self.seq_paths)
     def inverse_transform(self,trajectory,traj_dict):
         centerline=traj_dict['centerline']
         if self.use_cuda:

@@ -73,7 +73,7 @@ class ArgoverseForecastingLoader:
     
     def traj_with_track_id(self,track_id):
         """return trajectory of a particular traj id"""
-        # import pdb; pdb.set_trace()
+        import pdb; pdb.set_trace()
         time_stamp_agent=self.seq_df[self.seq_df["OBJECT_TYPE"] == "AGENT"]["TIMESTAMP"].tolist()
         index_time_stamp=list(range(50))
         time_to_index=dict(zip(time_stamp_agent,index_time_stamp))
@@ -112,27 +112,28 @@ class ArgoverseForecastingLoader:
             # print(traj)
             if traj is not None:
                 neighbours_traj.append(traj)
-        if len(neighbours_traj)<=1:
-            return neighbours_traj
+        return neighbours_traj
+        # if len(neighbours_traj)<=1:
+        #     return neighbours_traj
         
-        """
-        Experimenting with just one closest neighbour
-        """
-        closest_neighbour=neighbours_traj[0]
-        # import pdb; pdb.set_trace()
-        # print(closest_neighbour.shape)
-        for curr_neighbour in neighbours_traj:
-            norm_closest_neigh=np.linalg.norm([closest_neighbour[-1,0]-self.agent_traj[19,0],closest_neighbour[-1,1]-self.agent_traj[19,1]])
-            norm_curr_neigh=np.linalg.norm([curr_neighbour[-1,0]-self.agent_traj[19,0],curr_neighbour[-1,1]-self.agent_traj[19,1]])
-            if norm_closest_neigh>norm_curr_neigh:
-                closest_neighbour=curr_neighbour
-                # print("Closest distance of neighbour is ", norm_closest_neigh)
-        # print(closest_neighbour.shape)
-        # print("Final Closest distance of neighbour is ", norm_closest_neigh)
-        return [closest_neighbour]
-        # import pdb; pdb.set_trace()
-        # print("Size of neighbours trajectiry is",len(neighbours_traj))
-        # return neighbours_traj
+        # """
+        # Experimenting with just one closest neighbour
+        # """
+        # closest_neighbour=neighbours_traj[0]
+        # # import pdb; pdb.set_trace()
+        # # print(closest_neighbour.shape)
+        # for curr_neighbour in neighbours_traj:
+        #     norm_closest_neigh=np.linalg.norm([closest_neighbour[-1,0]-self.agent_traj[19,0],closest_neighbour[-1,1]-self.agent_traj[19,1]])
+        #     norm_curr_neigh=np.linalg.norm([curr_neighbour[-1,0]-self.agent_traj[19,0],curr_neighbour[-1,1]-self.agent_traj[19,1]])
+        #     if norm_closest_neigh>norm_curr_neigh:
+        #         closest_neighbour=curr_neighbour
+        #         # print("Closest distance of neighbour is ", norm_closest_neigh)
+        # # print(closest_neighbour.shape)
+        # # print("Final Closest distance of neighbour is ", norm_closest_neigh)
+        # return [closest_neighbour]
+        # # import pdb; pdb.set_trace()
+        # # print("Size of neighbours trajectiry is",len(neighbours_traj))
+        # # return neighbours_traj
 
     @property
     def city(self) -> str:

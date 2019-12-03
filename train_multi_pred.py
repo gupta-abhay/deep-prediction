@@ -14,8 +14,8 @@ Exp 3: train with prediction error
 Exp 4: train with expectation maximization 
 """
 from argoverse.map_representation.map_api import ArgoverseMap
-from data_new import collate_traj_multilane,Argoverse_MultiLane_Data
-from model_new import LSTMModel,LSTMModel_CenterlineEmbed
+from data_new import collate_traj_multilane,collate_traj_xy,collate_traj_social_centerline,Argoverse_MultiLane_Data,Argoverse_Social_Data,Argoverse_Social_Centerline_Data
+from model_new import LSTMModel,LSTMModel_CenterlineEmbed,Social_Model,Social_Model_Centerline
 from torch.utils.data import Dataset, DataLoader
 from argoverse.evaluation.eval_forecasting import get_ade, get_fde
 from argoverse.evaluation.competition_util import generate_forecasting_h5
@@ -92,6 +92,7 @@ class Train():
             fde_one_sec_avg = float(fde_one_sec)/no_samples
             fde_three_sec_avg = float(fde_three_sec)/no_samples
             print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {avg_loss:.4f} Batch Loss {loss.data:.4f} \
+            One sec:- ADE:{ade_one_sec/(no_samples):.4f} FDE: {fde_one_sec/(no_samples):.4f}\
             Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}",end="\r")
             # print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {avg_loss:.4f} \
             # One sec:- ADE:{ade_one_sec/(no_samples):.4f} FDE: {fde_one_sec/(no_samples):.4f}\
@@ -311,14 +312,14 @@ if __name__ == "__main__":
     warnings.filterwarnings('ignore')
 
     parser = argparse.ArgumentParser(description='Sequence Modeling - Argoverse Forecasting Task')
-    parser.add_argument('--batch_size', type=int, default=64, metavar='N',
-                        help='batch size (default: 32)')
+    parser.add_argument('--batch_size', type=int, default=128, metavar='N',
+                        help='batch size (default: 128)')
     parser.add_argument('--lr', type=float, default=0.001,
                         help='learning rate for optimizer (default: 0.001)')
     parser.add_argument('--epochs', type=int, default=10,
                         help='upper epoch limit (default: 10)')
     parser.add_argument('--model', type=str, default='LSTM',
-                        help='model type to execute (default: LSTM Baseline)')
+                        help='model type to execute (LSTM, Social.default: LSTM)')
     parser.add_argument('--data', type=str, default='MultiLane',
                         help='type of data to use for training (default: XY, options: XY,LaneCentre,')
     parser.add_argument('--mode',type=str,default='train',help='mode: train, test ,validate')
@@ -327,7 +328,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     curr_time = strftime("%Y%m%d%H%M%S", localtime())
-    curr_time="20191129181134"
+    # curr_time="20191129181134" #i guess lstm with centerline embed
+    # curr_time="20191201222432" #i guess social"
+    # curr_time="20191203132341" #social centerline"
     if args.mode == 'train':
         model_dir = './models/' + args.model + '/' + curr_time + '/'
         if not os.path.exists(model_dir):
@@ -336,7 +339,11 @@ if __name__ == "__main__":
         model_dir=args.model_dir
     
     # model=LSTMModel()
-    model=LSTMModel_CenterlineEmbed()
+    if args.model=="Social":
+        model=Social_Model()
+    elif args.model=="Social_Centerline":
+        model=Social_Model_Centerline()
+    # model=LSTMModel_CenterlineEmbed()
     loss_fn=nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr = args.lr)
     print("Mode is ",args.mode)
@@ -362,9 +369,48 @@ if __name__ == "__main__":
             argoverse_test = Argoverse_MultiLane_Data('data/test_obs/data',avm=argoverse_map,train_seq_size=20,mode="test")
             test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
                         shuffle=False, num_workers=16,collate_fn=collate_traj_multilane)
+    elif args.data=="Social":
+        argoverse_map=ArgoverseMap()
+        if args.mode=="train" or args.mode=="validate":
+            argoverse_val=Argoverse_Social_Data('data/val/data/',avm=argoverse_map,train_seq_size=20,mode="validate",load_saved=True)
+            val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
+                        shuffle=True, num_workers=8,collate_fn=collate_traj_xy)
+        if args.mode=="train":
+            argoverse_train=Argoverse_Social_Data('data/train/data/',avm=argoverse_map,train_seq_size=20,mode="train",load_saved=True)
+            train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
+                        shuffle=True, num_workers=8,collate_fn=collate_traj_xy)
+        if args.mode=="validate":
+            argoverse_val_multiple=Argoverse_Social_Data('data/val/data/',avm=argoverse_map,train_seq_size=20,mode="validate_multiple")
+            val_multi_loader=DataLoader(argoverse_val_multiple, batch_size=args.batch_size,
+                        shuffle=False, num_workers=8,collate_fn=collate_traj_xy)
+        if args.mode=="test" or args.mode=="train" or args.mode=="validate":
+            argoverse_test = Argoverse_Social_Data('data/test_obs/data',avm=argoverse_map,train_seq_size=20,mode="test")
+            test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
+                        shuffle=False, num_workers=8,collate_fn=collate_traj_xy)
+
+    elif args.data=="Social_Centerline":
+        argoverse_map=ArgoverseMap()
+        if args.mode=="train" or args.mode=="validate":
+            argoverse_val=Argoverse_Social_Centerline_Data('data/val/data/',avm=argoverse_map,train_seq_size=20,mode="validate",load_saved=True)
+            val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
+                        shuffle=True, num_workers=8,collate_fn=collate_traj_social_centerline)
+        if args.mode=="train":
+            argoverse_train=Argoverse_Social_Centerline_Data('data/train/data/',avm=argoverse_map,train_seq_size=20,mode="train",load_saved=True)
+            train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
+                        shuffle=True, num_workers=8,collate_fn=collate_traj_social_centerline)
+        if args.mode=="validate":
+            argoverse_val_multiple=Argoverse_Social_Centerline_Data('data/val/data/',avm=argoverse_map,train_seq_size=20,mode="validate_multiple")
+            val_multi_loader=DataLoader(argoverse_val_multiple, batch_size=args.batch_size,
+                        shuffle=False, num_workers=8,collate_fn=collate_traj_social_centerline)
+        if args.mode=="test" or args.mode=="train" or args.mode=="validate":
+            argoverse_test = Argoverse_Social_Centerline_Data('data/test_obs/data',avm=argoverse_map,train_seq_size=20,mode="test")
+            test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
+                        shuffle=False, num_workers=8,collate_fn=collate_traj_social_centerline)
+
+            
     else:
         print(f"No dataset: {args.data}. What are you doing")
-
+    # pdb.set_trace()
     if args.mode=="train":
         model=model.cuda()
         trainer=Train(model=model,optimizer=optimizer,train_loader=train_loader,val_loader=val_loader,test_loader=test_loader,loss_fn=loss_fn,model_dir=model_dir,pretrained_dir=args.pretrained_dir)    
