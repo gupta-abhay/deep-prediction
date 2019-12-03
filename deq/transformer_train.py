@@ -132,7 +132,7 @@ class Trainer():
         subseq_len = args.subseq_len
         val_loss = 0
         mems = []
-        num_batches=len(self.train_loader.batch_sampler)
+        num_batches=len(self.val_loader.batch_sampler)
         
         ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec=(0,0,0,0)
         ade_one_sec_avg, fde_one_sec_avg ,ade_three_sec_avg, fde_three_sec_avg = (0,0,0,0)
@@ -191,52 +191,54 @@ class Trainer():
         return val_loss/(num_batches), ade_one_sec/no_samples,fde_one_sec/no_samples,ade_three_sec/no_samples,fde_three_sec/no_samples
 
     def validate_model(self, model_path):
-        # total_loss=0
-        # num_batches=len(self.val_loader.batch_sampler)
-        # self.model.load_state_dict(torch.load(model_path+'best-model.pt')['model_state_dict'])
-        # self.model.eval()
-        # ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec=(0,0,0,0)
-        # ade_one_sec_avg, fde_one_sec_avg ,ade_three_sec_avg, fde_three_sec_avg = (0,0,0,0)
-        # no_samples=0
+        subseq_len = args.subseq_len
+        val_loss = 0
+        mems = []
+        num_batches=len(self.val_loader.batch_sampler)
+
+        self.model.load_state_dict(torch.load(model_path+'transformer-model.pt')['model_state_dict'])
+        self.model.eval()
         
-        # for i_batch,traj_dict in enumerate(self.val_loader):
-        #     gt_traj=traj_dict['gt_unnorm_agent']
-        #     if self.use_cuda:
-        #         gt_traj=gt_traj.cuda()
+        ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec=(0,0,0,0)
+        ade_one_sec_avg, fde_one_sec_avg ,ade_three_sec_avg, fde_three_sec_avg = (0,0,0,0)
+        no_samples=0
+        
+        for i_batch,traj_dict in enumerate(self.val_loader):
+            if mems:
+                mems[0] = mems[0].detach()
             
-        #     if self.model_type == 'VRAE':
-        #         pred_traj, latent_traj, latent_mean, latent_logvar = self.model(traj_dict)
-        #         pred_traj = self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
-        #         kl_loss = -0.5 * torch.mean(1 + latent_logvar - latent_mean.pow(2) - latent_logvar.exp())
-        #         mse_loss=self.loss_fn(pred_traj,gt_traj)
-        #         loss = kl_loss + mse_loss
-        #     else:
-        #         pred_traj=self.model(traj_dict)
-        #         pred_traj=self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
-        #         loss=self.loss_fn(pred_traj,gt_traj)
+            data = traj_dict['train_agent']
+            target = traj_dict['gt_agent']
 
+            if self.use_cuda:
+                data = data.cuda()
+                target = target.cuda()
             
-        #     total_loss=total_loss+loss.data
-        #     batch_samples=gt_traj.shape[0]           
-            
-        #     ade_one_sec+=sum([get_ade(pred_traj[i,:10,:],gt_traj[i,:10,:]) for i in range(batch_samples)])
-        #     fde_one_sec+=sum([get_fde(pred_traj[i,:10,:],gt_traj[i,:10,:]) for i in range(batch_samples)])
-        #     ade_three_sec+=sum([get_ade(pred_traj[i,:,:],gt_traj[i,:,:]) for i in range(batch_samples)])
-        #     fde_three_sec+=sum([get_fde(pred_traj[i,:,:],gt_traj[i,:,:]) for i in range(batch_samples)])
-            
-        #     no_samples+=batch_samples
-        #     ade_one_sec_avg = float(ade_one_sec)/no_samples
-        #     ade_three_sec_avg = float(ade_three_sec)/no_samples
-        #     fde_one_sec_avg = float(fde_one_sec)/no_samples
-        #     fde_three_sec_avg = float(fde_three_sec)/no_samples
+            pred_traj, mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
+                                    b_thres=args.b_thres, subseq_len=subseq_len)
 
-        #     print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {total_loss/(i_batch+1):.4f} \
-        #     One sec:- ADE:{ade_one_sec/(no_samples):.4f} FDE: {fde_one_sec/(no_samples):.4f}\
-        #     Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}",end="\r")
+            loss = self.loss_fn(pred_traj, target)
+            val_loss += loss.item()
+            batch_samples = target.shape[0]
+            
+            ade_one_sec+=sum([get_ade(pred_traj[i,:10,:],target[i,:10,:]) for i in range(batch_samples)])
+            fde_one_sec+=sum([get_fde(pred_traj[i,:10,:],target[i,:10,:]) for i in range(batch_samples)])
+            ade_three_sec+=sum([get_ade(pred_traj[i,:,:],target[i,:,:]) for i in range(batch_samples)])
+            fde_three_sec+=sum([get_fde(pred_traj[i,:,:],target[i,:,:]) for i in range(batch_samples)])
+            
+            no_samples+=batch_samples
+            ade_one_sec_avg = float(ade_one_sec)/no_samples
+            ade_three_sec_avg = float(ade_three_sec)/no_samples
+            fde_one_sec_avg = float(fde_one_sec)/no_samples
+            fde_three_sec_avg = float(fde_three_sec)/no_samples
 
-        # print()
-        self.save_top_errors_accuracy(self.model_dir, model_path)
-        print("Saved error plots")
+            print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {val_loss/(i_batch+1):.4f} \
+            One sec:- ADE:{ade_one_sec/(no_samples):.4f} FDE: {fde_one_sec/(no_samples):.4f}\
+            Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}",end="\r")
+
+        print()
+        # self.save_top_errors_accuracy(self.model_dir, model_path)
+        # print("Saved error plots")
 
     def save_top_errors_accuracy(self,model_dir, model_path):
         min_loss=np.inf
@@ -632,7 +634,6 @@ if __name__ == "__main__":
         para_model = model.to(device)
 
     loss_fn=nn.MSELoss()
-    # params = list(model.parameters())
     lr = args.lr
     optimizer = getattr(optim if args.optim != 'RAdam' else radam, args.optim)(model.parameters(), lr=lr, weight_decay=args.weight_decay)
 
