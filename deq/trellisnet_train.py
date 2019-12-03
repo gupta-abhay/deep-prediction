@@ -226,7 +226,7 @@ class Trainer():
         #     One sec:- ADE:{ade_one_sec/(no_samples):.4f} FDE: {fde_one_sec/(no_samples):.4f}\
         #     Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}", end="\r")
 
-        print()
+        # print()
         self.save_top_errors_accuracy(self.model_dir, model_path)
         print("Saved error plots")
 
