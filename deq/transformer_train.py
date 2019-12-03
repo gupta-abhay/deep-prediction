@@ -573,6 +573,8 @@ if __name__ == "__main__":
     parser.add_argument('--model_dir',type=str,default='',help='path to saved model for validation')
     parser.add_argument('--epochs', type=int, default=25,
                         help='upper epoch limit (default: 25)')
+    parser.add_argument('--multi_gpu', action='store_true',
+                        help='use multiple GPU')
 
         
     args = parser.parse_args()
