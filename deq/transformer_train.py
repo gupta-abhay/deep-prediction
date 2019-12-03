@@ -280,7 +280,6 @@ class Trainer():
 
             if self.use_cuda:
                 train_traj = train_traj.cuda()
-                gt_traj = gt_traj.cuda()
                 target = target.cuda()
 
             input_ = self.val_loader.dataset.inverse_transform(train_traj,traj_dict)
@@ -288,10 +287,10 @@ class Trainer():
                                     b_thres=args.b_thres, subseq_len=subseq_len)
             output = self.val_loader.dataset.inverse_transform(output, traj_dict)
             
-            if self.use_cuda:
-                output=output.to('cpu')
-                input_=input_.to('cpu')
-                target = target.to('cpu')
+            # if self.use_cuda:
+            output=output.to('cpu')
+            input_=input_.to('cpu')
+            target = target.to('cpu')
             
             loss=torch.norm(output.reshape(output.shape[0],-1)-gt_traj.reshape(gt_traj.shape[0],-1),dim=1)
             min_loss,min_index=torch.min(loss,dim=0)
