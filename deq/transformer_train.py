@@ -143,7 +143,7 @@ class Trainer():
                 mems[0] = mems[0].detach()
             
             data = traj_dict['train_agent']
-            target = traj_dict['gt_unnorm_agent']
+            target = traj_dict['gt_agent']
 
             if self.use_cuda:
                 data = data.cuda()
@@ -191,52 +191,52 @@ class Trainer():
         return val_loss/(num_batches), ade_one_sec/no_samples,fde_one_sec/no_samples,ade_three_sec/no_samples,fde_three_sec/no_samples
 
     def validate_model(self, model_path):
-        subseq_len = args.subseq_len
-        val_loss = 0
-        mems = []
-        num_batches=len(self.val_loader.batch_sampler)
+        # subseq_len = args.subseq_len
+        # val_loss = 0
+        # mems = []
+        # num_batches=len(self.val_loader.batch_sampler)
 
-        self.model.load_state_dict(torch.load(model_path+'transformer-model.pt')['model_state_dict'])
-        self.model.eval()
+        # self.model.load_state_dict(torch.load(model_path+'transformer-model.pt')['model_state_dict'])
+        # self.model.eval()
         
-        ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec=(0,0,0,0)
-        ade_one_sec_avg, fde_one_sec_avg ,ade_three_sec_avg, fde_three_sec_avg = (0,0,0,0)
-        no_samples=0
+        # ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec=(0,0,0,0)
+        # ade_one_sec_avg, fde_one_sec_avg ,ade_three_sec_avg, fde_three_sec_avg = (0,0,0,0)
+        # no_samples=0
         
-        for i_batch,traj_dict in enumerate(self.val_loader):
-            if mems:
-                mems[0] = mems[0].detach()
+        # for i_batch,traj_dict in enumerate(self.val_loader):
+        #     if mems:
+        #         mems[0] = mems[0].detach()
             
-            data = traj_dict['train_agent']
-            target = traj_dict['gt_unnorm_agent']
+        #     data = traj_dict['train_agent']
+        #     target = traj_dict['gt_agent']
 
-            if self.use_cuda:
-                data = data.cuda()
-                target = target.cuda()
+        #     if self.use_cuda:
+        #         data = data.cuda()
+        #         target = target.cuda()
             
-            pred_traj, mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
-                                    b_thres=args.b_thres, subseq_len=subseq_len)
+        #     pred_traj, mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
+        #                             b_thres=args.b_thres, subseq_len=subseq_len)
 
-            loss = self.loss_fn(pred_traj, target)
-            val_loss += loss.item()
-            batch_samples = target.shape[0]
+        #     loss = self.loss_fn(pred_traj, target)
+        #     val_loss += loss.item()
+        #     batch_samples = target.shape[0]
             
-            ade_one_sec+=sum([get_ade(pred_traj[i,:10,:],target[i,:10,:]) for i in range(batch_samples)])
-            fde_one_sec+=sum([get_fde(pred_traj[i,:10,:],target[i,:10,:]) for i in range(batch_samples)])
-            ade_three_sec+=sum([get_ade(pred_traj[i,:,:],target[i,:,:]) for i in range(batch_samples)])
-            fde_three_sec+=sum([get_fde(pred_traj[i,:,:],target[i,:,:]) for i in range(batch_samples)])
+        #     ade_one_sec+=sum([get_ade(pred_traj[i,:10,:],target[i,:10,:]) for i in range(batch_samples)])
+        #     fde_one_sec+=sum([get_fde(pred_traj[i,:10,:],target[i,:10,:]) for i in range(batch_samples)])
+        #     ade_three_sec+=sum([get_ade(pred_traj[i,:,:],target[i,:,:]) for i in range(batch_samples)])
+        #     fde_three_sec+=sum([get_fde(pred_traj[i,:,:],target[i,:,:]) for i in range(batch_samples)])
             
-            no_samples+=batch_samples
-            ade_one_sec_avg = float(ade_one_sec)/no_samples
-            ade_three_sec_avg = float(ade_three_sec)/no_samples
-            fde_one_sec_avg = float(fde_one_sec)/no_samples
-            fde_three_sec_avg = float(fde_three_sec)/no_samples
+        #     no_samples+=batch_samples
+        #     ade_one_sec_avg = float(ade_one_sec)/no_samples
+        #     ade_three_sec_avg = float(ade_three_sec)/no_samples
+        #     fde_one_sec_avg = float(fde_one_sec)/no_samples
+        #     fde_three_sec_avg = float(fde_three_sec)/no_samples
 
-            print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {val_loss/(i_batch+1):.4f} \
-            One sec:- ADE:{ade_one_sec/(no_samples):.4f} FDE: {fde_one_sec/(no_samples):.4f}\
-            Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}",end="\r")
+        #     print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {val_loss/(i_batch+1):.4f} \
+        #     One sec:- ADE:{ade_one_sec/(no_samples):.4f} FDE: {fde_one_sec/(no_samples):.4f}\
+        #     Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}",end="\r")
 
-        print()
+        # print()
         self.save_top_errors_accuracy(self.model_dir, model_path)
         print("Saved error plots")
 
@@ -274,21 +274,24 @@ class Trainer():
                 mems[0] = mems[0].detach()
 
             
-            gt_traj=traj_dict['gt_unnorm_agent']
-            train_traj=traj_dict['train_agent']
+            gt_traj = traj_dict['gt_unnorm_agent']
+            target = traj_dict['gt_agent']
+            train_traj = traj_dict['train_agent']
 
             if self.use_cuda:
                 train_traj = train_traj.cuda()
                 gt_traj = gt_traj.cuda()
+                target = target.cuda()
 
             input_ = self.val_loader.dataset.inverse_transform(train_traj,traj_dict)
-            output, mems = self.model(train_traj, gt_traj, mems, train_step=self.train_step, f_thres=args.f_thres,
+            output, mems = self.model(train_traj, target, mems, train_step=self.train_step, f_thres=args.f_thres,
                                     b_thres=args.b_thres, subseq_len=subseq_len)
             output = self.val_loader.dataset.inverse_transform(output, traj_dict)
             
             if self.use_cuda:
                 output=output.to('cpu')
                 input_=input_.to('cpu')
+                target = target.to('cpu')
             
             loss=torch.norm(output.reshape(output.shape[0],-1)-gt_traj.reshape(gt_traj.shape[0],-1),dim=1)
             min_loss,min_index=torch.min(loss,dim=0)
