@@ -461,7 +461,7 @@ if __name__ == "__main__":
         model = LSTMModel(cuda=args.cuda)
     elif args.model == 'TCN':
         channel_sizes = [args.nhid] * args.levels
-        model = TCNModel(args.nhid, args.opsize, channel_sizes, args.ksize, args.dropout, 128)
+        model = TCNModel(args.nhid, args.opsize, channel_sizes, args.ksize, args.dropout, 128, use_cuda=args.cuda)
     elif args.model == 'SOCIAL':
         model = Social_Model(cuda=args.cuda)
     elif args.model == 'VRAE':

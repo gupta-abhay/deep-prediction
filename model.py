@@ -49,13 +49,13 @@ class TCNModel(nn.Module):
         self.tcn = TemporalConvNetwork(input_size, num_channels, kernel_size=kernel_size, dropout=dropout)
         self.output_embedding = nn.Linear(embedding_size, 2)
         self.tdst_output = TimeDistributedLayer(nn.Linear(20, 30), batch_first=True)
-        # self.use_cuda = use_cuda
+        self.use_cuda = use_cuda
 
     
     def forward(self, input_dict):
         input_traj = input_dict['train_agent']
-        # if self.use_cuda:
-        #     input_traj = input_traj.cuda()
+        if self.use_cuda:
+            input_traj = input_traj.cuda()
 
         x = self.input_embedding(input_traj)
         x = self.tcn(x)
