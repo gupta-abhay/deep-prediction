@@ -33,7 +33,7 @@ import pdb
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
-from torchsummary import summary
+# from torchsummary import summary
 
 class Trainer():
     def __init__(self,model,use_cuda,parallel,optimizer,train_loader,\
