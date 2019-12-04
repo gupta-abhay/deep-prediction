@@ -254,7 +254,11 @@ class Trainer():
         city_name_min=[]
         seq_path_list_min=[]
 
-        self.model.load_state_dict(torch.load(model_path+'trellis-model.pt')['model_state_dict'])
+        # self.model.load_state_dict(torch.load(model_path+'trellis-model.pt')['model_state_dict'])
+        # self.model.eval()
+
+        checkpoint = torch.load(model_path+'trellis-model.pt', map_location=torch.device('cpu'))
+        self.model.load_state_dict(checkpoint['model_state_dict'])
         self.model.eval()
 
         for i_batch,traj_dict in enumerate(self.val_loader):
@@ -478,7 +482,7 @@ if __name__ == "__main__":
     args.pretrain_steps += args.start_train_steps
     assert args.seq_len > 0, "For now you must set seq_len > 0 when using deq"
     # args.work_dir += "deq"
-    args.cuda = torch.cuda.is_available()
+    # args.cuda = torch.cuda.is_available()
         
     if args.d_embed < 0:
         args.d_embed = args.nout
@@ -488,12 +492,13 @@ if __name__ == "__main__":
     # Set the random seed manually for reproducibility.
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    if torch.cuda.is_available():
-        if not args.cuda:
-            print('WARNING: You have a CUDA device, so you should probably run with --cuda')
-        else:
-            torch.set_default_tensor_type('torch.cuda.FloatTensor')
-            torch.cuda.manual_seed_all(args.seed)
+    
+    # if torch.cuda.is_available():
+    #     if not args.cuda:
+    #         print('WARNING: You have a CUDA device, so you should probably run with --cuda')
+    #     else:
+    #         torch.set_default_tensor_type('torch.cuda.FloatTensor')
+    #         torch.cuda.manual_seed_all(args.seed)
 
     device = torch.device('cuda' if args.cuda else 'cpu')
 
@@ -519,7 +524,7 @@ if __name__ == "__main__":
     lr = args.lr
     optimizer = getattr(optim if args.optim != 'RAdam' else radam, args.optim)(params, lr=lr, weight_decay=args.weight_decay)
     
-    print("CUDA is ",args.cuda)
+    print("CUDA is ", args.cuda)
     print("Model is TrellisNet-DEQ")
     print("Model dir is", model_dir)
     print(f"Training for {args.epochs} epochs")

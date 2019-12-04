@@ -264,7 +264,8 @@ class Trainer():
         city_name_min=[]
         seq_path_list_min=[]
 
-        self.model.load_state_dict(torch.load(model_path+'transformer-model.pt')['model_state_dict'])
+        checkpoint = torch.load(model_path+'transformer-model.pt', map_location=torch.device('cpu'))
+        self.model.load_state_dict(checkpoint['model_state_dict'])
         self.model.eval()
 
         for i_batch,traj_dict in enumerate(self.val_loader):
@@ -278,9 +279,9 @@ class Trainer():
             target = traj_dict['gt_agent']
             train_traj = traj_dict['train_agent']
 
-            if self.use_cuda:
-                train_traj = train_traj.cuda()
-                target = target.cuda()
+            # if self.use_cuda:
+            #     train_traj = train_traj.cuda()
+            #     target = target.cuda()
 
             input_ = self.val_loader.dataset.inverse_transform(train_traj,traj_dict)
             output, mems = self.model(train_traj, target, mems, train_step=self.train_step, f_thres=args.f_thres,
@@ -288,9 +289,9 @@ class Trainer():
             output = self.val_loader.dataset.inverse_transform(output, traj_dict)
             
             # if self.use_cuda:
-            output=output.to('cpu')
-            input_=input_.to('cpu')
-            target = target.to('cpu')
+            # output=output.to('cpu')
+            # input_=input_.to('cpu')
+            # target = target.to('cpu')
             
             loss=torch.norm(output.reshape(output.shape[0],-1)-gt_traj.reshape(gt_traj.shape[0],-1),dim=1)
             min_loss,min_index=torch.min(loss,dim=0)
@@ -602,7 +603,7 @@ if __name__ == "__main__":
     args.pretrain_steps += args.start_train_steps
     assert args.seq_len > 0, "For now you must set seq_len > 0 when using deq"
     # args.work_dir += "deq"
-    args.cuda = torch.cuda.is_available()
+    # args.cuda = torch.cuda.is_available()
         
     if args.d_embed < 0:
         args.d_embed = args.nout
@@ -612,12 +613,12 @@ if __name__ == "__main__":
     # Set the random seed manually for reproducibility.
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    if torch.cuda.is_available():
-        if not args.cuda:
-            print('WARNING: You have a CUDA device, so you should probably run with --cuda')
-        else:
-            torch.set_default_tensor_type('torch.cuda.FloatTensor')
-            torch.cuda.manual_seed_all(args.seed)
+    # if torch.cuda.is_available():
+    #     if not args.cuda:
+    #         print('WARNING: You have a CUDA device, so you should probably run with --cuda')
+    #     else:
+    #         torch.set_default_tensor_type('torch.cuda.FloatTensor')
+    #         torch.cuda.manual_seed_all(args.seed)
 
     device = torch.device('cuda' if args.cuda else 'cpu')
 
