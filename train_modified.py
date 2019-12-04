@@ -288,9 +288,11 @@ class Trainer():
         self.model.load_state_dict(torch.load(model_path+'best-model.pt')['model_state_dict'])
         self.model.eval()
         
+        print (self.model.dtype)
+
         cpu_model_dict = {}
         for key, val in self.model.state_dict().items():
-            self.model.state_dict[key] = val.cpu()
+            cpu_model_dict[key] = val.cpu()
 
         num_batches=len(self.val_loader.batch_sampler)
 
