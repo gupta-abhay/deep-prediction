@@ -156,8 +156,8 @@ class Trainer():
             if ade_three_sec_avg < self.best_3_ade and fde_three_sec_avg < self.best_3_fde:    
                 torch.save({
                     'epoch': epoch,
-                    'model_state_dict': model.state_dict(),
-                    'opt_state_dict': optimizer.state_dict(),
+                    'model_state_dict': self.model.state_dict(),
+                    'opt_state_dict': self.optimizer.state_dict(),
                     'loss': total_loss/(i_batch+1)
                 }, _filename)
 
@@ -285,101 +285,107 @@ class Trainer():
         seq_path_list_min=[]
 
 
-        print ("here")
         self.model.load_state_dict(torch.load(model_path+'best-model.pt')['model_state_dict'])
         self.model.eval()
+        
+        cpu_model_dict = {}
+        for key, val in self.model.state_dict().items():
+            self.model.state_dict[key] = val.cpu()
+
         num_batches=len(self.val_loader.batch_sampler)
 
-        for i_batch,traj_dict in enumerate(self.val_loader):
-            print(f"Running {i_batch}/{num_batches}",end="\r")
-            gt_traj=traj_dict['gt_unnorm_agent']
-            train_traj=traj_dict['train_agent']
-            if self.use_cuda:
-                train_traj=train_traj.cuda()
-            input_ = self.val_loader.dataset.inverse_transform(train_traj,traj_dict)
-            output = self.model(traj_dict)
-            output = self.val_loader.dataset.inverse_transform(output, traj_dict)
+        # for i_batch,traj_dict in enumerate(self.val_loader):
+        #     print(f"Running {i_batch}/{num_batches}",end="\r")
+        #     gt_traj=traj_dict['gt_unnorm_agent']
+        #     train_traj=traj_dict['train_agent']
+        #     if self.use_cuda:
+        #         train_traj=train_traj.cuda()
+        #     input_ = self.val_loader.dataset.inverse_transform(train_traj,traj_dict)
+        #     output = self.model(traj_dict)
+        #     output = self.val_loader.dataset.inverse_transform(output, traj_dict)
             
-            if self.use_cuda:
-                output=output.to('cpu')
-                input_=input_.to('cpu')
+        #     if self.use_cuda:
+        #         output=output.to('cpu')
+        #         input_=input_.to('cpu')
             
-            loss=torch.norm(output.reshape(output.shape[0],-1)-gt_traj.reshape(gt_traj.shape[0],-1),dim=1)
-            min_loss,min_index=torch.min(loss,dim=0)
-            max_loss,max_index=torch.max(loss,dim=0)
+        #     loss=torch.norm(output.reshape(output.shape[0],-1)-gt_traj.reshape(gt_traj.shape[0],-1),dim=1)
+        #     min_loss,min_index=torch.min(loss,dim=0)
+        #     max_loss,max_index=torch.max(loss,dim=0)
             
-            input_min_list.append(input_[min_index])
-            pred_min_list.append(output[min_index])
-            target_min_list.append(gt_traj[min_index])
+        #     input_min_list.append(input_[min_index])
+        #     pred_min_list.append(output[min_index])
+        #     target_min_list.append(gt_traj[min_index])
 
-            input_max_list.append(input_[max_index])
-            pred_max_list.append(output[max_index])
-            target_max_list.append(gt_traj[max_index])
+        #     input_max_list.append(input_[max_index])
+        #     pred_max_list.append(output[max_index])
+        #     target_max_list.append(gt_traj[max_index])
             
-            city_name_min.append(traj_dict['city'][min_index])
-            city_name_max.append(traj_dict['city'][max_index])
+        #     city_name_min.append(traj_dict['city'][min_index])
+        #     city_name_max.append(traj_dict['city'][max_index])
 
-            seq_path_list_max.append(traj_dict['seq_path'][max_index])
-            seq_path_list_min.append(traj_dict['seq_path'][min_index])
+        #     seq_path_list_max.append(traj_dict['seq_path'][max_index])
+        #     seq_path_list_min.append(traj_dict['seq_path'][min_index])
 
-            loss_list_max.append(min_loss.data)
-            loss_list_min.append(max_loss.data)
+        #     loss_list_max.append(min_loss.data)
+        #     loss_list_min.append(max_loss.data)
+
+        #     torch.cuda().empty_cache()
            
         
-        loss_list_max_array=np.array(loss_list_max)
-        loss_list_max=list(loss_list_max_array.argsort()[-num_images:][::-1])
+        # loss_list_max_array=np.array(loss_list_max)
+        # loss_list_max=list(loss_list_max_array.argsort()[-num_images:][::-1])
 
-        loss_list_min_array=np.array(loss_list_min)
-        loss_list_min=list(loss_list_min_array.argsort()[:num_images])
+        # loss_list_min_array=np.array(loss_list_min)
+        # loss_list_min=list(loss_list_min_array.argsort()[:num_images])
 
-        avm=ArgoverseMap()
+        # avm=ArgoverseMap()
         
-        high_error_path=model_dir+"/visualization/high_errors/"
-        low_error_path=model_dir+"/visualization/low_errors/"
+        # high_error_path=model_dir+"/visualization/high_errors/"
+        # low_error_path=model_dir+"/visualization/low_errors/"
 
-        if not os.path.exists(high_error_path):
-            os.makedirs(high_error_path)
+        # if not os.path.exists(high_error_path):
+        #     os.makedirs(high_error_path)
 
-        if not os.path.exists(low_error_path):
-            os.makedirs(low_error_path)
+        # if not os.path.exists(low_error_path):
+        #     os.makedirs(low_error_path)
 
-        input_max=[]
-        pred_max=[]
-        target_max=[]
-        city_max=[]
+        # input_max=[]
+        # pred_max=[]
+        # target_max=[]
+        # city_max=[]
 
-        centerlines_max=[]
-        for i,index in enumerate(loss_list_max):
-            print(f"Max: {i}")
-            input_max.append(input_max_list[index].detach().numpy())
-            pred_max.append([pred_max_list[index].detach().numpy()])
-            target_max.append(target_max_list[index].detach().numpy())
-            city_max.append(city_name_max[index])
-            viz_sequence(df=pd.read_csv(seq_path_list_max[index]) ,save_path=f"{high_error_path}/dataframe_{i}.png",show=True,avm=avm)
-            centerlines_max.append(avm.get_candidate_centerlines_for_traj(input_max[-1], city_max[-1],viz=False))
-        print("Created max array")
+        # centerlines_max=[]
+        # for i,index in enumerate(loss_list_max):
+        #     print(f"Max: {i}")
+        #     input_max.append(input_max_list[index].detach().numpy())
+        #     pred_max.append([pred_max_list[index].detach().numpy()])
+        #     target_max.append(target_max_list[index].detach().numpy())
+        #     city_max.append(city_name_max[index])
+        #     viz_sequence(df=pd.read_csv(seq_path_list_max[index]) ,save_path=f"{high_error_path}/dataframe_{i}.png",show=True,avm=avm)
+        #     centerlines_max.append(avm.get_candidate_centerlines_for_traj(input_max[-1], city_max[-1],viz=False))
+        # print("Created max array")
         
-        input_min=[]
-        pred_min=[]
-        target_min=[]
-        city_min=[]
-        centerlines_min=[]
-        for i,index in enumerate(loss_list_min):
-            print(f"Min: {i}")
-            input_min.append(input_min_list[index].detach().numpy())
-            pred_min.append([pred_min_list[index].detach().numpy()])
-            target_min.append(target_min_list[index].detach().numpy())
-            city_min.append(city_name_min[index])
-            # seq_path_min.append(seq_path_list_min[index])
-            viz_sequence(df=pd.read_csv(seq_path_list_min[index]) ,save_path=f"{low_error_path}/dataframe_{i}.png",show=True,avm=avm)
-            centerlines_min.append(avm.get_candidate_centerlines_for_traj(input_min[-1], city_min[-1],viz=False))
-        print("Created min array")
+        # input_min=[]
+        # pred_min=[]
+        # target_min=[]
+        # city_min=[]
+        # centerlines_min=[]
+        # for i,index in enumerate(loss_list_min):
+        #     print(f"Min: {i}")
+        #     input_min.append(input_min_list[index].detach().numpy())
+        #     pred_min.append([pred_min_list[index].detach().numpy()])
+        #     target_min.append(target_min_list[index].detach().numpy())
+        #     city_min.append(city_name_min[index])
+        #     # seq_path_min.append(seq_path_list_min[index])
+        #     viz_sequence(df=pd.read_csv(seq_path_list_min[index]) ,save_path=f"{low_error_path}/dataframe_{i}.png",show=True,avm=avm)
+        #     centerlines_min.append(avm.get_candidate_centerlines_for_traj(input_min[-1], city_min[-1],viz=False))
+        # print("Created min array")
 
-        print(f"Saving max visualizations at {high_error_path}")
-        viz_predictions(input_=np.array(input_max), output=pred_max,target=np.array(target_max),centerlines=centerlines_max,city_names=np.array(city_max),avm=avm,save_path=high_error_path)
+        # print(f"Saving max visualizations at {high_error_path}")
+        # viz_predictions(input_=np.array(input_max), output=pred_max,target=np.array(target_max),centerlines=centerlines_max,city_names=np.array(city_max),avm=avm,save_path=high_error_path)
         
-        print(f"Saving min visualizations at {low_error_path}")
-        viz_predictions(input_=np.array(input_min), output=pred_min,target=np.array(target_min),centerlines=centerlines_min,city_names=np.array(city_min),avm=avm,save_path=low_error_path)
+        # print(f"Saving min visualizations at {low_error_path}")
+        # viz_predictions(input_=np.array(input_min), output=pred_min,target=np.array(target_min),centerlines=centerlines_min,city_names=np.array(city_min),avm=avm,save_path=low_error_path)
 
 
     def run(self):
@@ -388,13 +394,6 @@ class Trainer():
                 print(f"\nEpoch {epoch}: ")
                 avg_loss_train=self.train_epoch()
                 avg_loss_val,ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec = self.val_epoch(epoch)
-                # if (epoch+1==self.num_epochs):
-                    # self.test_epoch()
-                    #self.test_model(self.model_dir)
-                # self.writer.scalar_summary('Val/1ADE_Epoch', ade_one_sec, epoch)
-                # self.writer.scalar_summary('Val/3ADE_Epoch', ade_three_sec, epoch)
-                # self.writer.scalar_summary('Val/1FDE_Epoch', fde_one_sec, epoch)
-                # self.writer.scalar_summary('Val/3FDE_Epoch', fde_three_sec, epoch)
         elif args.mode=="validate":
             self.validate_model(self.model_dir)
         # elif args.mode=="test":
@@ -443,7 +442,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     curr_time = strftime("%Y%m%d%H%M%S", localtime())
-    args.cuda = torch.cuda.is_available()
+    # args.cuda = torch.cuda.is_available()
 
     # initialize model and params
     
