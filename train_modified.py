@@ -33,6 +33,8 @@ import pdb
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
+from torchsummary import summary
+
 class Trainer():
     def __init__(self,model,use_cuda,parallel,optimizer,train_loader,\
         val_loader,test_loader,loss_fn,num_epochs,writer,args,modeldir,max_grad_norm=5,clip=False):
@@ -285,109 +287,116 @@ class Trainer():
         seq_path_list_min=[]
 
 
-        self.model.load_state_dict(torch.load(model_path+'best-model.pt')['model_state_dict'])
+        checkpoint = torch.load(model_path+'best-model.pt', map_location=torch.device('cpu'))
+        self.model.load_state_dict(checkpoint['model_state_dict'])
         self.model.eval()
-        
-        print (self.model.dtype)
 
-        cpu_model_dict = {}
-        for key, val in self.model.state_dict().items():
-            cpu_model_dict[key] = val.cpu()
+        # self.model.load_state_dict(torch.load(model_path+'best-model.pt')['model_state_dict'])
+        # self.model.eval()
+
+        # cpu_model_dict = {}
+        # for key, val in self.model.state_dict().items():
+        #     cpu_model_dict[key] = val.cpu()
+
+        # summary(self.model, input_size=(2,{}))
 
         num_batches=len(self.val_loader.batch_sampler)
 
-        # for i_batch,traj_dict in enumerate(self.val_loader):
-        #     print(f"Running {i_batch}/{num_batches}",end="\r")
-        #     gt_traj=traj_dict['gt_unnorm_agent']
-        #     train_traj=traj_dict['train_agent']
-        #     if self.use_cuda:
-        #         train_traj=train_traj.cuda()
-        #     input_ = self.val_loader.dataset.inverse_transform(train_traj,traj_dict)
-        #     output = self.model(traj_dict)
-        #     output = self.val_loader.dataset.inverse_transform(output, traj_dict)
+        for i_batch,traj_dict in enumerate(self.val_loader):
+            print(f"Running {i_batch}/{num_batches}",end="\r")
+            gt_traj=traj_dict['gt_unnorm_agent']
+            train_traj=traj_dict['train_agent']
             
-        #     if self.use_cuda:
-        #         output=output.to('cpu')
-        #         input_=input_.to('cpu')
+            # if self.use_cuda:
+            #     train_traj=train_traj.cuda()
+
+            input_ = self.val_loader.dataset.inverse_transform(train_traj,traj_dict)
+            output = self.model(traj_dict)
+            output = self.val_loader.dataset.inverse_transform(output, traj_dict)
             
-        #     loss=torch.norm(output.reshape(output.shape[0],-1)-gt_traj.reshape(gt_traj.shape[0],-1),dim=1)
-        #     min_loss,min_index=torch.min(loss,dim=0)
-        #     max_loss,max_index=torch.max(loss,dim=0)
+            # if self.use_cuda:
+            #     output=output.to('cpu')
+            #     input_=input_.to('cpu')
             
-        #     input_min_list.append(input_[min_index])
-        #     pred_min_list.append(output[min_index])
-        #     target_min_list.append(gt_traj[min_index])
-
-        #     input_max_list.append(input_[max_index])
-        #     pred_max_list.append(output[max_index])
-        #     target_max_list.append(gt_traj[max_index])
+            loss=torch.norm(output.reshape(output.shape[0],-1)-gt_traj.reshape(gt_traj.shape[0],-1),dim=1)
+            min_loss,min_index=torch.min(loss,dim=0)
+            max_loss,max_index=torch.max(loss,dim=0)
             
-        #     city_name_min.append(traj_dict['city'][min_index])
-        #     city_name_max.append(traj_dict['city'][max_index])
+            input_min_list.append(input_[min_index])
+            pred_min_list.append(output[min_index])
+            target_min_list.append(gt_traj[min_index])
 
-        #     seq_path_list_max.append(traj_dict['seq_path'][max_index])
-        #     seq_path_list_min.append(traj_dict['seq_path'][min_index])
+            input_max_list.append(input_[max_index])
+            pred_max_list.append(output[max_index])
+            target_max_list.append(gt_traj[max_index])
+            
+            city_name_min.append(traj_dict['city'][min_index])
+            city_name_max.append(traj_dict['city'][max_index])
 
-        #     loss_list_max.append(min_loss.data)
-        #     loss_list_min.append(max_loss.data)
+            seq_path_list_max.append(traj_dict['seq_path'][max_index])
+            seq_path_list_min.append(traj_dict['seq_path'][min_index])
 
-        #     torch.cuda().empty_cache()
+            loss_list_max.append(min_loss.data)
+            loss_list_min.append(max_loss.data)
+
+            if self.use_cuda:
+                torch.cuda().empty_cache()
            
         
-        # loss_list_max_array=np.array(loss_list_max)
-        # loss_list_max=list(loss_list_max_array.argsort()[-num_images:][::-1])
+        loss_list_max_array=np.array(loss_list_max)
+        loss_list_max=list(loss_list_max_array.argsort()[-num_images:][::-1])
 
-        # loss_list_min_array=np.array(loss_list_min)
-        # loss_list_min=list(loss_list_min_array.argsort()[:num_images])
+        loss_list_min_array=np.array(loss_list_min)
+        loss_list_min=list(loss_list_min_array.argsort()[:num_images])
 
-        # avm=ArgoverseMap()
+        avm=ArgoverseMap()
         
-        # high_error_path=model_dir+"/visualization/high_errors/"
-        # low_error_path=model_dir+"/visualization/low_errors/"
+        high_error_path=model_dir+"visualization/high_errors/"
+        low_error_path=model_dir+"visualization/low_errors/"
 
-        # if not os.path.exists(high_error_path):
-        #     os.makedirs(high_error_path)
+        if not os.path.exists(high_error_path):
+            os.makedirs(high_error_path)
 
-        # if not os.path.exists(low_error_path):
-        #     os.makedirs(low_error_path)
+        if not os.path.exists(low_error_path):
+            os.makedirs(low_error_path)
 
-        # input_max=[]
-        # pred_max=[]
-        # target_max=[]
-        # city_max=[]
+        input_max=[]
+        pred_max=[]
+        target_max=[]
+        city_max=[]
 
-        # centerlines_max=[]
-        # for i,index in enumerate(loss_list_max):
-        #     print(f"Max: {i}")
-        #     input_max.append(input_max_list[index].detach().numpy())
-        #     pred_max.append([pred_max_list[index].detach().numpy()])
-        #     target_max.append(target_max_list[index].detach().numpy())
-        #     city_max.append(city_name_max[index])
-        #     viz_sequence(df=pd.read_csv(seq_path_list_max[index]) ,save_path=f"{high_error_path}/dataframe_{i}.png",show=True,avm=avm)
-        #     centerlines_max.append(avm.get_candidate_centerlines_for_traj(input_max[-1], city_max[-1],viz=False))
-        # print("Created max array")
+        centerlines_max=[]
+        for i,index in enumerate(loss_list_max):
+            print(f"Max: {i}")
+            input_max.append(input_max_list[index].detach().numpy())
+            pred_max.append([pred_max_list[index].detach().numpy()])
+            target_max.append(target_max_list[index].detach().numpy())
+            city_max.append(city_name_max[index])
+            viz_sequence(df=pd.read_csv(seq_path_list_max[index]) ,save_path=f"{high_error_path}/dataframe_{i}.png",show=True,avm=avm)
+            centerlines_max.append(avm.get_candidate_centerlines_for_traj(input_max[-1], city_max[-1],viz=False))
+        print("Created max array")
         
-        # input_min=[]
-        # pred_min=[]
-        # target_min=[]
-        # city_min=[]
-        # centerlines_min=[]
-        # for i,index in enumerate(loss_list_min):
-        #     print(f"Min: {i}")
-        #     input_min.append(input_min_list[index].detach().numpy())
-        #     pred_min.append([pred_min_list[index].detach().numpy()])
-        #     target_min.append(target_min_list[index].detach().numpy())
-        #     city_min.append(city_name_min[index])
-        #     # seq_path_min.append(seq_path_list_min[index])
-        #     viz_sequence(df=pd.read_csv(seq_path_list_min[index]) ,save_path=f"{low_error_path}/dataframe_{i}.png",show=True,avm=avm)
-        #     centerlines_min.append(avm.get_candidate_centerlines_for_traj(input_min[-1], city_min[-1],viz=False))
-        # print("Created min array")
+        input_min=[]
+        pred_min=[]
+        target_min=[]
+        city_min=[]
+        centerlines_min=[]
+        for i,index in enumerate(loss_list_min):
+            print(f"Min: {i}")
+            input_min.append(input_min_list[index].detach().numpy())
+            pred_min.append([pred_min_list[index].detach().numpy()])
+            target_min.append(target_min_list[index].detach().numpy())
+            city_min.append(city_name_min[index])
+            # seq_path_min.append(seq_path_list_min[index])
+            viz_sequence(df=pd.read_csv(seq_path_list_min[index]) ,save_path=f"{low_error_path}/dataframe_{i}.png",show=True,avm=avm)
+            centerlines_min.append(avm.get_candidate_centerlines_for_traj(input_min[-1], city_min[-1],viz=False))
+        print("Created min array")
 
-        # print(f"Saving max visualizations at {high_error_path}")
-        # viz_predictions(input_=np.array(input_max), output=pred_max,target=np.array(target_max),centerlines=centerlines_max,city_names=np.array(city_max),avm=avm,save_path=high_error_path)
+        print(f"Saving max visualizations at {high_error_path}")
+        viz_predictions(input_=np.array(input_max), output=pred_max,target=np.array(target_max),centerlines=centerlines_max,city_names=np.array(city_max),avm=avm,save_path=high_error_path)
         
-        # print(f"Saving min visualizations at {low_error_path}")
-        # viz_predictions(input_=np.array(input_min), output=pred_min,target=np.array(target_min),centerlines=centerlines_min,city_names=np.array(city_min),avm=avm,save_path=low_error_path)
+        print(f"Saving min visualizations at {low_error_path}")
+        viz_predictions(input_=np.array(input_min), output=pred_min,target=np.array(target_min),centerlines=centerlines_min,city_names=np.array(city_min),avm=avm,save_path=low_error_path)
 
 
     def run(self):
