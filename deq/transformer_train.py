@@ -663,7 +663,7 @@ if __name__ == "__main__":
     args.pretrain_steps += args.start_train_steps
     assert args.seq_len > 0, "For now you must set seq_len > 0 when using deq"
     # args.work_dir += "deq"
-    # args.cuda = torch.cuda.is_available()
+    args.cuda = torch.cuda.is_available()
         
     if args.d_embed < 0:
         args.d_embed = args.nout
@@ -673,12 +673,12 @@ if __name__ == "__main__":
     # Set the random seed manually for reproducibility.
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    # if torch.cuda.is_available():
-    #     if not args.cuda:
-    #         print('WARNING: You have a CUDA device, so you should probably run with --cuda')
-    #     else:
-    #         torch.set_default_tensor_type('torch.cuda.FloatTensor')
-    #         torch.cuda.manual_seed_all(args.seed)
+    if torch.cuda.is_available():
+        if not args.cuda:
+            print('WARNING: You have a CUDA device, so you should probably run with --cuda')
+        else:
+            torch.set_default_tensor_type('torch.cuda.FloatTensor')
+            torch.cuda.manual_seed_all(args.seed)
 
     device = torch.device('cuda' if args.cuda else 'cpu')
 
