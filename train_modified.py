@@ -288,7 +288,7 @@ class Trainer():
         
         for i_batch,traj_dict in enumerate(self.val_loader):
             print(f"Running {i_batch}/{num_batches}",end="\r")
-            gt_traj=traj_dict['gt_unnorm_traj'].numpy()
+            gt_traj=traj_dict['gt_unnorm_agent'].numpy()
             # output=self.model(traj_dict,mode='validate')
             output=self.model(traj_dict)
             output=self.val_loader.dataset.inverse_transform(output,traj_dict)
