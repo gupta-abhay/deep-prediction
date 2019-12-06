@@ -6,6 +6,42 @@ from TCN.tcn import TemporalConvNetwork, TimeDistributedLayer
 # from TCN.trellisnet import TrellisNet
 # from TCN.utils import WeightDrop
 
+class LaneMultiModel(nn.Module):
+    def __init__(self,cuda=False):
+        super(LSTMModel,self).__init__()
+        self.encoder_lstm=nn.LSTMCell(input_size=2,hidden_size=64)
+        self.embedding_pos=nn.Linear(64,2)
+        self.decoder_lstm=nn.LSTMCell(input_size=64,hidden_size=64)
+        self.use_cuda=cuda
+
+    def forward(self,input_dict):
+        # import pdb; pdb.set_trace()
+        list_lists=input_dict['train_agent'] ## this will be a list conver to batch and reshape
+
+        input_traj=torch.Tensor([traj for one_list in list_lists for traj in one_list])
+
+        # if len(input_dict[''])
+        self.h,self.c=(torch.zeros(input_traj.shape[0],64),torch.zeros(input_traj.shape[0],64))
+        if self.use_cuda:
+            input_traj=input_traj.cuda()
+            self.h=self.h.cuda()
+            self.c=self.c.cuda()
+        for i in range(20):
+            self.h,self.c=self.encoder_lstm(input_traj[:,i,:],(self.h,self.c))
+        out=[]
+        for i in range(30):
+            self.h,self.c=self.decoder_lstm(self.h,(self.h,self.c))
+            out.append(self.embedding_pos(self.h))
+
+        pred_traj=torch.stack(out,dim=1)
+        pred_list_traj=[]
+        for one_list in list_lists:
+            pred_list_traj.append(pred_traj[i:i+len(one_list)])
+            i=i+len(one_list)
+        if 'gt_unnorm_agent' in input_traj.keys():
+            pass
+        else:
+            return pred_list_traj
 
 class LSTMModel(nn.Module):
     def __init__(self,cuda=False):

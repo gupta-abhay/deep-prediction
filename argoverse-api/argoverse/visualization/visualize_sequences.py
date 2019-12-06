@@ -35,7 +35,7 @@ def interpolate_polyline(polyline: np.ndarray, num_points: int) -> np.ndarray:
 
 
 def viz_sequence(
-    df: pd.DataFrame, lane_centerlines: Optional[np.ndarray] = None, show: bool = True, smoothen: bool = False
+    df: pd.DataFrame, lane_centerlines: Optional[np.ndarray] = None, show: bool = True, smoothen: bool = False, save_path=None,avm=None
 ) -> None:
 
     # Seq data
@@ -44,7 +44,7 @@ def viz_sequence(
 
     if lane_centerlines is None:
         # Get API for Argo Dataset map
-        avm = ArgoverseMap()
+        # avm = ArgoverseMap()
         seq_lane_bbox = avm.city_halluc_bbox_table[city_name]
         seq_lane_props = avm.city_lane_centerlines_dict[city_name]
 
@@ -81,7 +81,8 @@ def viz_sequence(
     plt.xlabel("Map X")
     plt.ylabel("Map Y")
 
-    color_dict = {"AGENT": "#d33e4c", "OTHERS": "#d3e8ef", "AV": "#007672"}
+    # color_dict = {"AGENT": "#d33e4c", "OTHERS": "#d3e8ef", "AV": "#007672"}
+    color_dict = {"AGENT": "#d33e4c", "OTHERS": "#e8d3ef", "AV": "#007672"}
     object_type_tracker: Dict[int, int] = defaultdict(int)
 
     # Plot all the tracks up till current frame
@@ -141,4 +142,6 @@ def viz_sequence(
 
     plt.axis("off")
     if show:
-        plt.show()
+        plt.savefig(save_path)
+        plt.close()
+        # plt.show()

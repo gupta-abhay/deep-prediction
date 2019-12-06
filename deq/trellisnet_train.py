@@ -22,6 +22,7 @@ import itertools
 import os, sys
 import threading
 import copy
+import pickle
 
 import pdb
 import math
@@ -32,7 +33,6 @@ from seq_models.trellisnets.deq_trellisnet import DEQTrellisNetLM
 from modules import radam
 from utils.exp_utils import create_exp_dir
 from utils.data_parallel import BalancedDataParallel
-# from utils.splitcross import *
 
 import resource
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -115,6 +115,7 @@ class Trainer():
             self.optimizer.step()
             self.train_step += 1
 
+        print()
         return train_loss/num_batches
         
 
@@ -122,7 +123,7 @@ class Trainer():
         subseq_len = args.subseq_len
         val_loss = 0
         mems = []
-        num_batches=len(self.train_loader.batch_sampler)
+        num_batches=len(self.val_loader.batch_sampler)
         
         ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec=(0,0,0,0)
         ade_one_sec_avg, fde_one_sec_avg ,ade_three_sec_avg, fde_three_sec_avg = (0,0,0,0)
@@ -181,38 +182,40 @@ class Trainer():
         return val_loss/(num_batches), ade_one_sec/no_samples,fde_one_sec/no_samples,ade_three_sec/no_samples,fde_three_sec/no_samples
 
     def validate_model(self, model_path):
-        # total_loss=0
+        # subseq_len = args.subseq_len
+        # val_loss = 0
+        # mems = []
         # num_batches=len(self.val_loader.batch_sampler)
-        # self.model.load_state_dict(torch.load(model_path+'best-model.pt')['model_state_dict'])
+
+        # self.model.load_state_dict(torch.load(model_path+'trellis-model.pt')['model_state_dict'])
         # self.model.eval()
+        
         # ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec=(0,0,0,0)
         # ade_one_sec_avg, fde_one_sec_avg ,ade_three_sec_avg, fde_three_sec_avg = (0,0,0,0)
         # no_samples=0
         
         # for i_batch,traj_dict in enumerate(self.val_loader):
-        #     gt_traj=traj_dict['gt_unnorm_agent']
-        #     if self.use_cuda:
-        #         gt_traj=gt_traj.cuda()
+        #     if mems:
+        #         mems[0] = mems[0].detach()
             
-        #     if self.model_type == 'VRAE':
-        #         pred_traj, latent_traj, latent_mean, latent_logvar = self.model(traj_dict)
-        #         pred_traj = self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
-        #         kl_loss = -0.5 * torch.mean(1 + latent_logvar - latent_mean.pow(2) - latent_logvar.exp())
-        #         mse_loss=self.loss_fn(pred_traj,gt_traj)
-        #         loss = kl_loss + mse_loss
-        #     else:
-        #         pred_traj=self.model(traj_dict)
-        #         pred_traj=self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
-        #         loss=self.loss_fn(pred_traj,gt_traj)
+        #     data = traj_dict['train_agent']
+        #     target = traj_dict['gt_agent']
 
+        #     if self.use_cuda:
+        #         data = data.cuda()
+        #         target = target.cuda()
             
-        #     total_loss=total_loss+loss.data
-        #     batch_samples=gt_traj.shape[0]           
+        #     (_, _, pred_traj), mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
+        #                             b_thres=args.b_thres, subseq_len=subseq_len, decode=True)
+
+        #     loss = self.loss_fn(pred_traj, target)
+        #     val_loss += loss.item()
+        #     batch_samples = target.shape[0]
             
-        #     ade_one_sec+=sum([get_ade(pred_traj[i,:10,:],gt_traj[i,:10,:]) for i in range(batch_samples)])
-        #     fde_one_sec+=sum([get_fde(pred_traj[i,:10,:],gt_traj[i,:10,:]) for i in range(batch_samples)])
-        #     ade_three_sec+=sum([get_ade(pred_traj[i,:,:],gt_traj[i,:,:]) for i in range(batch_samples)])
-        #     fde_three_sec+=sum([get_fde(pred_traj[i,:,:],gt_traj[i,:,:]) for i in range(batch_samples)])
+        #     ade_one_sec+=sum([get_ade(pred_traj[i,:10,:],target[i,:10,:]) for i in range(batch_samples)])
+        #     fde_one_sec+=sum([get_fde(pred_traj[i,:10,:],target[i,:10,:]) for i in range(batch_samples)])
+        #     ade_three_sec+=sum([get_ade(pred_traj[i,:,:],target[i,:,:]) for i in range(batch_samples)])
+        #     fde_three_sec+=sum([get_fde(pred_traj[i,:,:],target[i,:,:]) for i in range(batch_samples)])
             
         #     no_samples+=batch_samples
         #     ade_one_sec_avg = float(ade_one_sec)/no_samples
@@ -220,15 +223,78 @@ class Trainer():
         #     fde_one_sec_avg = float(fde_one_sec)/no_samples
         #     fde_three_sec_avg = float(fde_three_sec)/no_samples
 
-        #     print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {total_loss/(i_batch+1):.4f} \
+        #     print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {val_loss/(i_batch+1):.4f} \
         #     One sec:- ADE:{ade_one_sec/(no_samples):.4f} FDE: {fde_one_sec/(no_samples):.4f}\
-        #     Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}",end="\r")
+        #     Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}", end="\r")
 
         # print()
-        self.save_top_errors_accuracy(self.model_dir, model_path)
-        print("Saved error plots")
+        # self.save_top_errors_accuracy(self.model_dir, model_path)
+        # print("Saved error plots")
+
+        self.save_results_single_pred()
+
+ 
+    def save_results_single_pred(self):
+        mems = []
+        subseq_len = args.subseq_len
+        print("running save results")
+        afl=ArgoverseForecastingLoader("../data/val/data/")
+        checkpoint = torch.load(self.model_dir+'trellis-model.pt', map_location=lambda storage, loc: storage)
+        # self.model.load_state_dict(torch.load(self.model_dir+'best-model.pt')['model_state_dict'])
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.model.eval()
+        
+        save_results_path=self.model_dir+"/results/"
+        # pdb.set_trace()
+        if not os.path.exists(save_results_path):
+            os.mkdir(save_results_path)
+        num_batches=len(self.val_loader.batch_sampler)
+        
+        for i_batch,traj_dict in enumerate(self.val_loader):
+            print(f"Running {i_batch}/{num_batches}",end="\r")
+            gt_traj=traj_dict['gt_unnorm_agent'].numpy()
+
+            if mems:
+                mems[0] = mems[0].detach()
+            
+            data = traj_dict['train_agent']
+            target = traj_dict['gt_agent']
+
+            if self.use_cuda:
+                data = data.cuda()
+                target = target.cuda()
+            
+            (_, _, output), mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
+                                    b_thres=args.b_thres, subseq_len=subseq_len, decode=True)
+
+
+            # output=self.model(traj_dict,mode='validate')
+            # output=self.model(traj_dict)
+            output=self.val_loader.dataset.inverse_transform(output,traj_dict)
+            
+            output=output.detach().cpu().numpy()
+            seq_paths=traj_dict['seq_path']
+            
+            for index,seq_path in enumerate(seq_paths):
+                loader=afl.get(seq_path)
+                input_array=loader.agent_traj[0:20,:]
+                city=loader.city
+                del loader
+                seq_index=int(os.path.basename(seq_path).split('.')[0])
+
+                output_dict={'seq_path':seq_path,'seq_index':seq_index,'input':input_array,
+                            'output':output[index],'target':gt_traj[index],'city':city}
+                with open(f"{save_results_path}/{seq_index}.pkl", 'wb') as f:
+                    pickle.dump(output_dict,f) 
+
+            # input_tensor=np.array(input_tensor)
 
     def save_top_errors_accuracy(self,model_dir, model_path):
+        subseq_len = args.subseq_len
+        val_loss = 0
+        mems = []
+        num_batches=len(self.val_loader.batch_sampler)
+
         min_loss=np.inf
         max_loss=0
         num_images=10
@@ -247,25 +313,36 @@ class Trainer():
         city_name_min=[]
         seq_path_list_min=[]
 
+        # self.model.load_state_dict(torch.load(model_path+'trellis-model.pt')['model_state_dict'])
+        # self.model.eval()
 
-        print ("here")
-        self.model.load_state_dict(torch.load(model_path+'best-model.pt')['model_state_dict'])
+        checkpoint = torch.load(model_path+'trellis-model.pt', map_location=torch.device('cpu'))
+        self.model.load_state_dict(checkpoint['model_state_dict'])
         self.model.eval()
-        num_batches=len(self.val_loader.batch_sampler)
 
         for i_batch,traj_dict in enumerate(self.val_loader):
             print(f"Running {i_batch}/{num_batches}",end="\r")
-            gt_traj=traj_dict['gt_unnorm_agent']
-            train_traj=traj_dict['train_agent']
+
+            if mems:
+                mems[0] = mems[0].detach()
+
+            gt_traj = traj_dict['gt_unnorm_agent']
+            target = traj_dict['gt_agent']
+            train_traj = traj_dict['train_agent']
+
             if self.use_cuda:
                 train_traj=train_traj.cuda()
+                target = target.cuda()
+            
             input_ = self.val_loader.dataset.inverse_transform(train_traj,traj_dict)
-            output = self.model(traj_dict)
+            (_, _, output), mems = self.model(train_traj, target, mems, train_step=self.train_step, f_thres=args.f_thres,
+                                    b_thres=args.b_thres, subseq_len=subseq_len, decode=True)
             output = self.val_loader.dataset.inverse_transform(output, traj_dict)
             
-            if self.use_cuda:
-                output=output.to('cpu')
-                input_=input_.to('cpu')
+            # if self.use_cuda:
+            output=output.cpu()
+            input_=input_.cpu()
+            target = target.cpu()
             
             loss=torch.norm(output.reshape(output.shape[0],-1)-gt_traj.reshape(gt_traj.shape[0],-1),dim=1)
             min_loss,min_index=torch.min(loss,dim=0)
@@ -464,27 +541,23 @@ if __name__ == "__main__":
     args.pretrain_steps += args.start_train_steps
     assert args.seq_len > 0, "For now you must set seq_len > 0 when using deq"
     # args.work_dir += "deq"
-    args.cuda = torch.cuda.is_available()
+    # args.cuda = torch.cuda.is_available()
         
     if args.d_embed < 0:
         args.d_embed = args.nout
 
     assert args.batch_size % args.batch_chunk == 0
 
-    # args.work_dir = '{}-{}'.format(args.work_dir, args.dataset)
-    # args.work_dir = os.path.join(args.work_dir, time.strftime('%Y%m%d-%H%M%S'))
-    # logging = create_exp_dir(model_dir,
-    #     scripts_to_save=['train_trellisnet.py', 'models/trellisnets/deq_trellisnet.py'], debug=args.debug)
-
     # Set the random seed manually for reproducibility.
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    if torch.cuda.is_available():
-        if not args.cuda:
-            print('WARNING: You have a CUDA device, so you should probably run with --cuda')
-        else:
-            torch.set_default_tensor_type('torch.cuda.FloatTensor')
-            torch.cuda.manual_seed_all(args.seed)
+    
+    # if torch.cuda.is_available():
+    #     if not args.cuda:
+    #         print('WARNING: You have a CUDA device, so you should probably run with --cuda')
+    #     else:
+    #         torch.set_default_tensor_type('torch.cuda.FloatTensor')
+    #         torch.cuda.manual_seed_all(args.seed)
 
     device = torch.device('cuda' if args.cuda else 'cpu')
 
@@ -510,7 +583,7 @@ if __name__ == "__main__":
     lr = args.lr
     optimizer = getattr(optim if args.optim != 'RAdam' else radam, args.optim)(params, lr=lr, weight_decay=args.weight_decay)
     
-    print("CUDA is ",args.cuda)
+    print("CUDA is ", args.cuda)
     print("Model is TrellisNet-DEQ")
     print("Model dir is", model_dir)
     print(f"Training for {args.epochs} epochs")
@@ -518,9 +591,9 @@ if __name__ == "__main__":
     argoverse_train=Argoverse_Data('../data/train/data/',cuda=args.cuda)
     argoverse_val=Argoverse_Data('../data/val/data',cuda=args.cuda)
     train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
-                        shuffle=True, num_workers=1)
+                        shuffle=True, num_workers=10, drop_last=True)
     val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
-                        shuffle=True, num_workers=1)
+                        shuffle=True, num_workers=10, drop_last=True)
 
     print("Argoverse train dataloder is of size", len(train_loader.batch_sampler))
     print("Argoverse val dataloader is of size", len(val_loader.batch_sampler))
@@ -529,4 +602,5 @@ if __name__ == "__main__":
     trainer=Trainer(model=para_model,use_cuda=args.cuda,optimizer=optimizer,\
         train_loader=train_loader,val_loader=val_loader,loss_fn=loss_fn,\
             num_epochs=args.epochs,writer=None,args=args,modeldir=model_dir, params = params)
+
     trainer.run()

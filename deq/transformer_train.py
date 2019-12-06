@@ -25,6 +25,7 @@ import copy
 
 import pdb
 import math
+import pickle
 
 from visualize import viz_predictions
 from data import Argoverse_Data
@@ -132,7 +133,7 @@ class Trainer():
         subseq_len = args.subseq_len
         val_loss = 0
         mems = []
-        num_batches=len(self.train_loader.batch_sampler)
+        num_batches=len(self.val_loader.batch_sampler)
         
         ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec=(0,0,0,0)
         ade_one_sec_avg, fde_one_sec_avg ,ade_three_sec_avg, fde_three_sec_avg = (0,0,0,0)
@@ -191,38 +192,40 @@ class Trainer():
         return val_loss/(num_batches), ade_one_sec/no_samples,fde_one_sec/no_samples,ade_three_sec/no_samples,fde_three_sec/no_samples
 
     def validate_model(self, model_path):
-        # total_loss=0
+        # subseq_len = args.subseq_len
+        # val_loss = 0
+        # mems = []
         # num_batches=len(self.val_loader.batch_sampler)
-        # self.model.load_state_dict(torch.load(model_path+'best-model.pt')['model_state_dict'])
+
+        # self.model.load_state_dict(torch.load(model_path+'transformer-model.pt')['model_state_dict'])
         # self.model.eval()
+        
         # ade_one_sec,fde_one_sec,ade_three_sec,fde_three_sec=(0,0,0,0)
         # ade_one_sec_avg, fde_one_sec_avg ,ade_three_sec_avg, fde_three_sec_avg = (0,0,0,0)
         # no_samples=0
         
         # for i_batch,traj_dict in enumerate(self.val_loader):
-        #     gt_traj=traj_dict['gt_unnorm_agent']
-        #     if self.use_cuda:
-        #         gt_traj=gt_traj.cuda()
+        #     if mems:
+        #         mems[0] = mems[0].detach()
             
-        #     if self.model_type == 'VRAE':
-        #         pred_traj, latent_traj, latent_mean, latent_logvar = self.model(traj_dict)
-        #         pred_traj = self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
-        #         kl_loss = -0.5 * torch.mean(1 + latent_logvar - latent_mean.pow(2) - latent_logvar.exp())
-        #         mse_loss=self.loss_fn(pred_traj,gt_traj)
-        #         loss = kl_loss + mse_loss
-        #     else:
-        #         pred_traj=self.model(traj_dict)
-        #         pred_traj=self.val_loader.dataset.inverse_transform(pred_traj,traj_dict)
-        #         loss=self.loss_fn(pred_traj,gt_traj)
+        #     data = traj_dict['train_agent']
+        #     target = traj_dict['gt_agent']
 
+        #     if self.use_cuda:
+        #         data = data.cuda()
+        #         target = target.cuda()
             
-        #     total_loss=total_loss+loss.data
-        #     batch_samples=gt_traj.shape[0]           
+        #     pred_traj, mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
+        #                             b_thres=args.b_thres, subseq_len=subseq_len)
+
+        #     loss = self.loss_fn(pred_traj, target)
+        #     val_loss += loss.item()
+        #     batch_samples = target.shape[0]
             
-        #     ade_one_sec+=sum([get_ade(pred_traj[i,:10,:],gt_traj[i,:10,:]) for i in range(batch_samples)])
-        #     fde_one_sec+=sum([get_fde(pred_traj[i,:10,:],gt_traj[i,:10,:]) for i in range(batch_samples)])
-        #     ade_three_sec+=sum([get_ade(pred_traj[i,:,:],gt_traj[i,:,:]) for i in range(batch_samples)])
-        #     fde_three_sec+=sum([get_fde(pred_traj[i,:,:],gt_traj[i,:,:]) for i in range(batch_samples)])
+        #     ade_one_sec+=sum([get_ade(pred_traj[i,:10,:],target[i,:10,:]) for i in range(batch_samples)])
+        #     fde_one_sec+=sum([get_fde(pred_traj[i,:10,:],target[i,:10,:]) for i in range(batch_samples)])
+        #     ade_three_sec+=sum([get_ade(pred_traj[i,:,:],target[i,:,:]) for i in range(batch_samples)])
+        #     fde_three_sec+=sum([get_fde(pred_traj[i,:,:],target[i,:,:]) for i in range(batch_samples)])
             
         #     no_samples+=batch_samples
         #     ade_one_sec_avg = float(ade_one_sec)/no_samples
@@ -230,15 +233,80 @@ class Trainer():
         #     fde_one_sec_avg = float(fde_one_sec)/no_samples
         #     fde_three_sec_avg = float(fde_three_sec)/no_samples
 
-        #     print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {total_loss/(i_batch+1):.4f} \
+        #     print(f"Validation Iter {i_batch+1}/{num_batches} Avg Loss {val_loss/(i_batch+1):.4f} \
         #     One sec:- ADE:{ade_one_sec/(no_samples):.4f} FDE: {fde_one_sec/(no_samples):.4f}\
         #     Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}",end="\r")
 
         # print()
-        self.save_top_errors_accuracy(self.model_dir, model_path)
-        print("Saved error plots")
+        # self.save_top_errors_accuracy(self.model_dir, model_path)
+        # print("Saved error plots")
+        self.save_results_single_pred()
+
+    def save_results_single_pred(self):
+        mems = []
+        subseq_len = args.subseq_len
+        print("running save results")
+        afl=ArgoverseForecastingLoader("../data/val/data/")
+        checkpoint = torch.load(self.model_dir+'transformer-model.pt', map_location=lambda storage, loc: storage)
+        # self.model.load_state_dict(torch.load(self.model_dir+'best-model.pt')['model_state_dict'])
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.model.eval()
+        
+        save_results_path=self.model_dir+"/results/"
+        # pdb.set_trace()
+        if not os.path.exists(save_results_path):
+            os.mkdir(save_results_path)
+        num_batches=len(self.val_loader.batch_sampler)
+        
+        for i_batch,traj_dict in enumerate(self.val_loader):
+            print(f"Running {i_batch}/{num_batches}",end="\r")
+            gt_traj=traj_dict['gt_unnorm_agent'].numpy()
+
+            if mems:
+                mems[0] = mems[0].detach()
+            
+            data = traj_dict['train_agent']
+            target = traj_dict['gt_agent']
+
+            if self.use_cuda:
+                data = data.cuda()
+                target = target.cuda()
+
+            # print (data.dtype, target.dtype)
+            
+            output, mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
+                                    b_thres=args.b_thres, subseq_len=subseq_len)
+
+
+            # output=self.model(traj_dict,mode='validate')
+            # output=self.model(traj_dict)
+            output=self.val_loader.dataset.inverse_transform(output,traj_dict)
+            
+            output=output.detach().cpu().numpy()
+            seq_paths=traj_dict['seq_path']
+            
+            for index,seq_path in enumerate(seq_paths):
+                loader=afl.get(seq_path)
+                input_array=loader.agent_traj[0:20,:]
+                city=loader.city
+                del loader
+                seq_index=int(os.path.basename(seq_path).split('.')[0])
+
+                output_dict={'seq_path':seq_path,'seq_index':seq_index,'input':input_array,
+                            'output':output[index],'target':gt_traj[index],'city':city}
+                with open(f"{save_results_path}/{seq_index}.pkl", 'wb') as f:
+                    pickle.dump(output_dict,f) 
+
+            # input_tensor=np.array(input_tensor)
+
+
 
     def save_top_errors_accuracy(self,model_dir, model_path):
+        subseq_len = args.subseq_len
+        val_loss = 0
+        mems = []
+        num_batches=len(self.val_loader.batch_sampler)
+
         min_loss=np.inf
         max_loss=0
         num_images=10
@@ -257,25 +325,34 @@ class Trainer():
         city_name_min=[]
         seq_path_list_min=[]
 
-
-        print ("here")
-        self.model.load_state_dict(torch.load(model_path+'best-model.pt')['model_state_dict'])
+        checkpoint = torch.load(model_path+'transformer-model.pt', map_location=torch.device('cpu'))
+        self.model.load_state_dict(checkpoint['model_state_dict'])
         self.model.eval()
-        num_batches=len(self.val_loader.batch_sampler)
 
         for i_batch,traj_dict in enumerate(self.val_loader):
             print(f"Running {i_batch}/{num_batches}",end="\r")
-            gt_traj=traj_dict['gt_unnorm_agent']
-            train_traj=traj_dict['train_agent']
-            if self.use_cuda:
-                train_traj=train_traj.cuda()
+
+            if mems:
+                mems[0] = mems[0].detach()
+
+            
+            gt_traj = traj_dict['gt_unnorm_agent']
+            target = traj_dict['gt_agent']
+            train_traj = traj_dict['train_agent']
+
+            # if self.use_cuda:
+            #     train_traj = train_traj.cuda()
+            #     target = target.cuda()
+
             input_ = self.val_loader.dataset.inverse_transform(train_traj,traj_dict)
-            output = self.model(traj_dict)
+            output, mems = self.model(train_traj, target, mems, train_step=self.train_step, f_thres=args.f_thres,
+                                    b_thres=args.b_thres, subseq_len=subseq_len)
             output = self.val_loader.dataset.inverse_transform(output, traj_dict)
             
-            if self.use_cuda:
-                output=output.to('cpu')
-                input_=input_.to('cpu')
+            # if self.use_cuda:
+            # output=output.to('cpu')
+            # input_=input_.to('cpu')
+            # target = target.to('cpu')
             
             loss=torch.norm(output.reshape(output.shape[0],-1)-gt_traj.reshape(gt_traj.shape[0],-1),dim=1)
             min_loss,min_index=torch.min(loss,dim=0)
@@ -632,7 +709,6 @@ if __name__ == "__main__":
         para_model = model.to(device)
 
     loss_fn=nn.MSELoss()
-    # params = list(model.parameters())
     lr = args.lr
     optimizer = getattr(optim if args.optim != 'RAdam' else radam, args.optim)(model.parameters(), lr=lr, weight_decay=args.weight_decay)
 
@@ -668,9 +744,9 @@ if __name__ == "__main__":
     argoverse_train=Argoverse_Data('../data/train/data/',cuda=args.cuda)
     argoverse_val=Argoverse_Data('../data/val/data',cuda=args.cuda)
     train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
-                        shuffle=True, num_workers=1)
+                        shuffle=True, num_workers=10, drop_last=True)
     val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
-                        shuffle=True, num_workers=1)
+                        shuffle=True, num_workers=10, drop_last=True)
 
     print("Argoverse train dataloder is of size", len(train_loader.batch_sampler))
     print("Argoverse val dataloader is of size", len(val_loader.batch_sampler))

@@ -22,14 +22,18 @@ def viz_predictions(
         city_names (numpy array): city names for each trajectory
         show (bool): if True, show
     """
+    # import pdb;pdb.set_trace()
     num_tracks = input_.shape[0]
     obs_len = input_.shape[1]
     pred_len = target.shape[1]
     # import pdb;pdb.set_trace()
-    plt.figure(0, figsize=(8, 7))
+    plt.close()
+    fig=plt.figure(figsize=(8, 7))
+
     if avm is None:
         avm = ArgoverseMap()
     for i in range(num_tracks):
+        plt.subplot(2, 2, i+1)
         plt.plot(
             input_[i, :, 0],
             input_[i, :, 1],
@@ -133,8 +137,16 @@ def viz_predictions(
         plt.yticks([])
         handles, labels = plt.gca().get_legend_handles_labels()
         by_label = OrderedDict(zip(labels, handles))
-        plt.legend()
+        if i==0:
+            plt.title("TCN")
+        elif i==1:
+            plt.title("Trellis Networks")
+        elif i==2:
+            plt.title("DEQ TrellisNet")
+        elif i==3:
+            plt.title("DEQ Transformers")
         # if save_path is not None:
-        plt.savefig(save_path+f"/{i}.jpg")
-        plt.close()
-        
+    # plt.legend()
+    fig.legend(handles, labels)
+    plt.savefig(save_path)
+    plt.close(fig)

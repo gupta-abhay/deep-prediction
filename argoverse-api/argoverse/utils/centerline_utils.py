@@ -321,6 +321,9 @@ def get_oracle_from_candidate_centerlines(candidate_centerlines: List[np.ndarray
 
     return oracle_centerline
 
+def sort_centerlines(candidate_centerlines: List[np.ndarray], xy: np.ndarray):
+    """sort centerlines based on distance travelled"""
+    
 
 def get_centerlines_most_aligned_with_trajectory(xy: np.ndarray, candidate_cl: List[np.ndarray]) -> List[np.ndarray]:
     """Get the centerline from candidate_cl along which the trajectory travelled maximum distance

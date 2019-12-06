@@ -21,7 +21,6 @@ def _read_csv(path: Path, *args: Any, **kwargs: Any) -> pd.DataFrame:
     Returns:
         pandas DataFrame containing the loaded csv
     """
-    # print(path)
     return pd.read_csv(path, *args, **kwargs)
 
 
@@ -57,55 +56,24 @@ class ArgoverseForecastingLoader:
 
         return self._track_id_list[str(self.current_seq)]
 
-    @property
-    def city(self) -> str:
-        """Get the city name for the current sequence.
+    # @property
+    def track_id_list_neighbours(self) -> Sequence[int]:
+        """Get the track ids in the current sequence.
 
         Returns:
-            city name, i.e., either 'PIT' or 'MIA'
+            list of track ids in the current sequence
         """
-        # if self._city_list is None:
-        #     self._city_list = {}
+        # if self._track_id_list is None:
+        #     self._track_id_list = {}
         #     for seq in self.seq_list:
         #         seq_df = _read_csv(seq)
-        #         self._city_list[str(seq)] = seq_df["CITY_NAME"].values[0]
-
-        # return self._city_list[str(self.current_seq)]
-        return self.seq_df["CITY_NAME"].values[0]
-
-    @property
-    def num_tracks(self) -> int:
-        """Get the number of tracks in the current sequence. 
-
-        Returns:
-            number of tracks in the current sequence
-        """
-        return len(self.track_id_list)
-
-    @property
-    def seq_df(self) -> pd.DataFrame:
-        """Get the dataframe for the current sequence.
-
-        Returns:
-            pandas DataFrame for the current sequence
-        """
-        return _read_csv(self.current_seq)
-
-    @property
-    def agent_traj(self) -> np.ndarray:
-        """Get the trajectory for the track of type 'AGENT' in the current sequence.
-
-        Returns:
-            numpy array of shape (seq_len x 2) for the agent trajectory
-        """
-        agent_x = self.seq_df[self.seq_df["OBJECT_TYPE"] == "AGENT"]["X"]
-        agent_y = self.seq_df[self.seq_df["OBJECT_TYPE"] == "AGENT"]["Y"]
-        agent_traj = np.column_stack((agent_x, agent_y))
-        return agent_traj
-
+        #         self._track_id_list[str(seq)] = np.unique(seq_df["TRACK_ID"].values).tolist()
+        # import pdb; pdb.set_trace()
+        return np.unique(self.seq_df[self.seq_df["OBJECT_TYPE"]=="OTHERS"]["TRACK_ID"].tolist())
+    
     def traj_with_track_id(self,track_id):
         """return trajectory of a particular traj id"""
-        # import pdb; pdb.set_trace()
+        import pdb; pdb.set_trace()
         time_stamp_agent=self.seq_df[self.seq_df["OBJECT_TYPE"] == "AGENT"]["TIMESTAMP"].tolist()
         index_time_stamp=list(range(50))
         time_to_index=dict(zip(time_stamp_agent,index_time_stamp))
@@ -135,19 +103,6 @@ class ArgoverseForecastingLoader:
             return agent_traj
         else:
             return None
-    def track_id_list_neighbours(self) -> Sequence[int]:
-        """Get the track ids in the current sequence.
-
-        Returns:
-            list of track ids in the current sequence
-        """
-        # if self._track_id_list is None:
-        #     self._track_id_list = {}
-        #     for seq in self.seq_list:
-        #         seq_df = _read_csv(seq)
-        #         self._track_id_list[str(seq)] = np.unique(seq_df["TRACK_ID"].values).tolist()
-        # import pdb; pdb.set_trace()
-        return np.unique(self.seq_df[self.seq_df["OBJECT_TYPE"]=="OTHERS"]["TRACK_ID"].tolist())
 
     def neighbour_traj(self):
         track_ids=self.track_id_list_neighbours()
@@ -161,9 +116,9 @@ class ArgoverseForecastingLoader:
         # if len(neighbours_traj)<=1:
         #     return neighbours_traj
         
-        """
-        Experimenting with just one closest neighbour
-        """
+        # """
+        # Experimenting with just one closest neighbour
+        # """
         # closest_neighbour=neighbours_traj[0]
         # # import pdb; pdb.set_trace()
         # # print(closest_neighbour.shape)
@@ -179,6 +134,56 @@ class ArgoverseForecastingLoader:
         # # import pdb; pdb.set_trace()
         # # print("Size of neighbours trajectiry is",len(neighbours_traj))
         # # return neighbours_traj
+
+    @property
+    def city(self) -> str:
+        """Get the city name for the current sequence.
+
+        Returns:
+            city name, i.e., either 'PIT' or 'MIA'
+        """
+        # if self._city_list is None:
+        #     self._city_list = {}
+        #     for seq in self.seq_list:
+        #         seq_df = _read_csv(seq)
+        #         self._city_list[str(seq)] = seq_df["CITY_NAME"].values[0]
+
+        # seq_df=
+        return self.seq_df["CITY_NAME"].values[0]
+        # return self._city_list[str(self.current_seq)]
+
+    @property
+    def num_tracks(self) -> int:
+        """Get the number of tracks in the current sequence. 
+
+        Returns:
+            number of tracks in the current sequence
+        """
+        return len(self.track_id_list)
+
+    @property
+    def seq_df(self) -> pd.DataFrame:
+        """Get the dataframe for the current sequence.
+
+        Returns:
+            pandas DataFrame for the current sequence
+        """
+        return _read_csv(self.current_seq)
+
+    @property
+    def agent_traj(self) -> np.ndarray:
+        """Get the trajectory for the track of type 'AGENT' in the current sequence.
+
+        Returns:
+            numpy array of shape (seq_len x 2) for the agent trajectory
+        """
+        # import pdb; pdb.set_trace()
+        agent_x = self.seq_df[self.seq_df["OBJECT_TYPE"] == "AGENT"]["X"]
+        agent_y = self.seq_df[self.seq_df["OBJECT_TYPE"] == "AGENT"]["Y"]
+        agent_traj = np.column_stack((agent_x, agent_y))
+        return agent_traj
+
+
     def __iter__(self) -> "ArgoverseForecastingLoader":
         """Iterator for enumerating over sequences in the root_dir specified.
 
