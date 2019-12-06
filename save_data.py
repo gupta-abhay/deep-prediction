@@ -15,7 +15,7 @@ import numpy as np
 from random import shuffle
 import os
 import pandas as pd
-from data_new import collate_traj_multilane,Argoverse_Social_Centerline_Data
+from data_new import collate_traj_multilane,Argoverse_Social_Centerline_Data,Argoverse_MultiLane_Data
 argoverse_map=ArgoverseMap()
 # print("Loaded map")
 import pdb
@@ -35,16 +35,16 @@ def collate_traj_random(list_data):
 #     print("hi")
 #     pdb.set_trace()
 # exit()
-# dataset_train=Argoverse_Social_Centerline_Data('data/train/data/',train_seq_size=20,mode="train",save=True,load_saved=False)
+# dataset_train=Argoverse_MultiLane_Data('data/train/data/',train_seq_size=20,mode="train",save=True,load_saved=False)
 # dataloader_train=DataLoader(dataset_train,batch_size=256,
 #                         shuffle=False, num_workers=16,collate_fn=collate_traj_random)
 # num_batches=len(dataloader_train.batch_sampler)
 # for i_batch,dict_i in enumerate(dataloader_train):
 #     print(f"Done {i_batch}/{num_batches}")
 
-dataset_val=Argoverse_Social_Centerline_Data('data/val/data/',avm=argoverse_map,train_seq_size=20,mode="validate",save=True)
+dataset_val=Argoverse_MultiLane_Data('data/val/data/',avm=argoverse_map,train_seq_size=20,mode="validate",save=True)
 dataloader_val=DataLoader(dataset_val,batch_size=256,
-                        shuffle=False, num_workers=16,collate_fn=collate_traj_random)
+                        shuffle=False, num_workers=8,collate_fn=collate_traj_random)
 num_batches=len(dataloader_val.batch_sampler)
 for i_batch,dict_i in enumerate(dataloader_val):
     print(f"Done {i_batch}/{num_batches}")

@@ -145,8 +145,10 @@ class Argoverse_Data(Dataset):
         self.seq_paths=glob.glob(f"{self.root_dir}/*.csv")
         self.train_seq_size=train_seq_size
     def __len__(self):
+        return 200
+        # return len(self.seq_paths)
         # return 500
-        return len(self.seq_paths)
+        # return len(self.seq_paths)//3
 
 
 class Argoverse_MultiLane_Data(Argoverse_Data):
@@ -213,13 +215,17 @@ class Argoverse_MultiLane_Data(Argoverse_Data):
                 return_dict= {'seq_path':self.seq_paths[index],'train_traj':map_features[:self.train_seq_size,:],
                         'gt_traj':map_features[self.train_seq_size:,:],'helpers':map_feature_helpers,
                         'norm':norm,'ref_t':ref_t,'social_features':social_features}
+                if self.save:
+                    with open(f"/home/scratch/nitinsin/argoverse/train/{index}.pkl",'wb') as f:
+                        pickle.dump(return_dict,f)
             else:
                 return_dict= {'seq_path':self.seq_paths[index],'train_traj':map_features[:self.train_seq_size,:],
                         'gt_unnorm_traj':agent_traj[self.train_seq_size:,:],'helpers':map_feature_helpers,
                         'norm':norm,'ref_t':ref_t,'social_features':social_features}
-            if self.save:
-                with open(f"/home/scratch/nitinsin/argoverse/val/{index}.pkl",'wb') as f:
-                    pickle.dump(return_dict,f)
+                if self.save:
+                    with open(f"/home/scratch/nitinsin/argoverse/val/{index}.pkl",'wb') as f:
+                        pickle.dump(return_dict,f)
+            
             return return_dict
             # return {'seq_path':self.seq_paths[index],'train_unnorm_traj': agent_traj[:self.train_seq_size,:],
             #         'train_traj':map_features[:self.train_seq_size,:],'gt_traj':map_features[self.train_seq_size:,:],
@@ -250,7 +256,7 @@ class Argoverse_Social_Data(Argoverse_Data):
         # self.agent_rel=agent_rel
         self.save=save
         self.mode=mode
-        self.load_saved=False
+        self.load_saved=load_saved
 
     def transform_social(self,agent_trajectory,neighbour_trajectories):
         def rotation_angle(x,y):
@@ -308,14 +314,17 @@ class Argoverse_Social_Data(Argoverse_Data):
             return_dict= {'seq_path':self.seq_paths[index],'train_traj':agent_trajectory[:self.train_seq_size,:],
                         'gt_traj':agent_trajectory[self.train_seq_size:,:],'neighbours':normalized_neighbour_trajectories,
                         'helpers':{'mean':mean, 'rotation':rotation}
-                        } 
+                        }
+            if self.save:
+                with open(f"/home/scratch/nitinsin/argoverse_social_xy/train/{index}.pkl",'wb') as f:
+                    pickle.dump(return_dict,f) 
         elif self.mode=="validate":
             return_dict= {'seq_path':self.seq_paths[index],'train_traj':agent_trajectory[:self.train_seq_size,:], 
                         'gt_traj':agent_trajectory[self.train_seq_size:,:],'gt_unnorm_traj':agent_traj[self.train_seq_size:,:],
                         'neighbours':normalized_neighbour_trajectories,'helpers':{'mean':mean, 'rotation':rotation}}
-        if self.save:
-            with open(f"/home/scratch/nitinsin/argoverse_social_xy/val/{index}.pkl",'wb') as f:
-                pickle.dump(return_dict,f)
+            # if self.save:
+            #     with open(f"/home/scratch/nitinsin/argoverse_social_xy/val/{index}.pkl",'wb') as f:
+            #         pickle.dump(return_dict,f)
         # return return_dict
         return return_dict
 

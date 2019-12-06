@@ -27,12 +27,13 @@ def viz_predictions(
     obs_len = input_.shape[1]
     pred_len = target.shape[1]
     # import pdb;pdb.set_trace()
-    
+    plt.close()
+    fig=plt.figure(figsize=(8, 7))
+
     if avm is None:
         avm = ArgoverseMap()
     for i in range(num_tracks):
-        plt.close()
-        fig=plt.figure(i, figsize=(8, 7))
+        plt.subplot(2, 2, i+1)
         plt.plot(
             input_[i, :, 0],
             input_[i, :, 1],
@@ -136,8 +137,17 @@ def viz_predictions(
         plt.yticks([])
         handles, labels = plt.gca().get_legend_handles_labels()
         by_label = OrderedDict(zip(labels, handles))
-        plt.legend()
+        if i==0:
+            plt.title("LSTM (xy)")
+        elif i==1:
+            plt.title("LSTM (Centerline)")
+        elif i==2:
+            plt.title("Social LSTM (xy)")
+        elif i==3:
+            plt.title("Social LSTM (Centerline)")
         # if save_path is not None:
-        plt.savefig(save_path+f"/{i}.jpg")
-        plt.close(fig)
+    # plt.legend()
+    fig.legend(handles, labels)
+    plt.savefig(save_path)
+    plt.close(fig)
         
