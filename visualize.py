@@ -22,14 +22,21 @@ def viz_predictions(
         city_names (numpy array): city names for each trajectory
         show (bool): if True, show
     """
+    # import pdb;pdb.set_trace()
     num_tracks = input_.shape[0]
     obs_len = input_.shape[1]
     pred_len = target.shape[1]
     # import pdb;pdb.set_trace()
+<<<<<<< HEAD
     plt.figure(0, figsize=(8, 7))
+=======
+    
+>>>>>>> social
     if avm is None:
         avm = ArgoverseMap()
     for i in range(num_tracks):
+        plt.close()
+        fig=plt.figure(i, figsize=(8, 7))
         plt.plot(
             input_[i, :, 0],
             input_[i, :, 1],
@@ -136,5 +143,9 @@ def viz_predictions(
         plt.legend()
         # if save_path is not None:
         plt.savefig(save_path+f"/{i}.jpg")
+<<<<<<< HEAD
         plt.close()
+=======
+        plt.close(fig)
+>>>>>>> social
         

@@ -5,19 +5,30 @@ import numpy as np
 from argoverse.map_representation.map_api import ArgoverseMap
 from visualize_subplot import viz_predictions
 # output1_path="models/LSTM_XY/20191204034620/results/"
+<<<<<<< HEAD
 output1_path="models/TCN/20191130154208/results/"
 output2_path="deq/models/trellisnet/20191202145627/results/"
 output3_path="deq/models/trellisnet/20191202145627/results/"
 output4_path="deq/models/transformers/20191202161816/results/"
+=======
+output1_path="models/LSTM_XY/20191205171634/results/"
+output2_path="models/LSTM/20191204174545/results/"
+output3_path="models/Social_Model_Refined/20191205124545/results/"
+output4_path="models/Social_Model_Centerline_Refined/20191205095959/results/"
+>>>>>>> social
 
 file_paths_1=glob.glob(f"{output1_path}/*.pkl")
 file_paths_2=glob.glob(f"{output2_path}/*.pkl")
 file_paths_3=glob.glob(f"{output3_path}/*.pkl")
 file_paths_4=glob.glob(f"{output4_path}/*.pkl")
+<<<<<<< HEAD
 
 output_path="models/plot_results/"
 ok.makedirs(output_path)
 
+=======
+output_path="model_compare_results/second/"
+>>>>>>> social
 print(f"Len of file paths are {len(file_paths_1)} {len(file_paths_2)} {len(file_paths_3)} {len(file_paths_4)}")
 avm=ArgoverseMap()
 for index,path in enumerate(file_paths_2):
