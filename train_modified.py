@@ -293,7 +293,7 @@ class Trainer():
             output=self.model(traj_dict)
             output=self.val_loader.dataset.inverse_transform(output,traj_dict)
             
-            output=output.detach().numpy()
+            output=output.detach().cpu().numpy()
             seq_paths=traj_dict['seq_path']
             
             for index,seq_path in enumerate(seq_paths):
