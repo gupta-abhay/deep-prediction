@@ -235,6 +235,7 @@ class Trainer():
 
  
     def save_results_single_pred(self):
+        mems = []
         subseq_len = args.subseq_len
         print("running save results")
         afl=ArgoverseForecastingLoader("../data/val/data/")
