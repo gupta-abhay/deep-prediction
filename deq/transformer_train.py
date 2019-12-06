@@ -270,6 +270,8 @@ class Trainer():
             if self.use_cuda:
                 data = data.cuda()
                 target = target.cuda()
+
+            print (data.dtype, target.dtype)
             
             output, mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
                                     b_thres=args.b_thres, subseq_len=subseq_len)
