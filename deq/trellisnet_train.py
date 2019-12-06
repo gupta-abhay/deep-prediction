@@ -22,6 +22,7 @@ import itertools
 import os, sys
 import threading
 import copy
+import pickle
 
 import pdb
 import math
@@ -232,7 +233,9 @@ class Trainer():
 
         self.save_results_single_pred()
 
+ 
     def save_results_single_pred(self):
+        subseq_len = args.subseq_len
         print("running save results")
         afl=ArgoverseForecastingLoader("../data/val/data/")
         checkpoint = torch.load(self.model_dir+'trellis-model.pt', map_location=lambda storage, loc: storage)
@@ -248,12 +251,27 @@ class Trainer():
         
         for i_batch,traj_dict in enumerate(self.val_loader):
             print(f"Running {i_batch}/{num_batches}",end="\r")
-            gt_traj=traj_dict['gt_unnorm_traj'].numpy()
+            gt_traj=traj_dict['gt_unnorm_agent'].numpy()
+
+            if mems:
+                mems[0] = mems[0].detach()
+            
+            data = traj_dict['train_agent']
+            target = traj_dict['gt_agent']
+
+            if self.use_cuda:
+                data = data.cuda()
+                target = target.cuda()
+            
+            (_, _, output), mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
+                                    b_thres=args.b_thres, subseq_len=subseq_len, decode=True)
+
+
             # output=self.model(traj_dict,mode='validate')
-            output=self.model(traj_dict)
+            # output=self.model(traj_dict)
             output=self.val_loader.dataset.inverse_transform(output,traj_dict)
             
-            output=output.detach().numpy()
+            output=output.detach().cpu().numpy()
             seq_paths=traj_dict['seq_path']
             
             for index,seq_path in enumerate(seq_paths):

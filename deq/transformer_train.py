@@ -237,8 +237,65 @@ class Trainer():
         #     Three sec:- ADE:{ade_three_sec/(no_samples):.4f} FDE: {fde_three_sec/(no_samples):.4f}",end="\r")
 
         # print()
-        self.save_top_errors_accuracy(self.model_dir, model_path)
-        print("Saved error plots")
+        # self.save_top_errors_accuracy(self.model_dir, model_path)
+        # print("Saved error plots")
+        self.save_results_single_pred()
+
+    def save_results_single_pred(self):
+        subseq_len = args.subseq_len
+        print("running save results")
+        afl=ArgoverseForecastingLoader("../data/val/data/")
+        checkpoint = torch.load(self.model_dir+'transformer-model.pt', map_location=lambda storage, loc: storage)
+        # self.model.load_state_dict(torch.load(self.model_dir+'best-model.pt')['model_state_dict'])
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.model.eval()
+        
+        save_results_path=self.model_dir+"/results/"
+        # pdb.set_trace()
+        if not os.path.exists(save_results_path):
+            os.mkdir(save_results_path)
+        num_batches=len(self.val_loader.batch_sampler)
+        
+        for i_batch,traj_dict in enumerate(self.val_loader):
+            print(f"Running {i_batch}/{num_batches}",end="\r")
+            gt_traj=traj_dict['gt_unnorm_agent'].numpy()
+
+            if mems:
+                mems[0] = mems[0].detach()
+            
+            data = traj_dict['train_agent']
+            target = traj_dict['gt_agent']
+
+            if self.use_cuda:
+                data = data.cuda()
+                target = target.cuda()
+            
+            output, mems = self.model(data, target, mems, train_step=self.train_step, f_thres=args.f_thres,
+                                    b_thres=args.b_thres, subseq_len=subseq_len)
+
+
+            # output=self.model(traj_dict,mode='validate')
+            # output=self.model(traj_dict)
+            output=self.val_loader.dataset.inverse_transform(output,traj_dict)
+            
+            output=output.detach().cpu().numpy()
+            seq_paths=traj_dict['seq_path']
+            
+            for index,seq_path in enumerate(seq_paths):
+                loader=afl.get(seq_path)
+                input_array=loader.agent_traj[0:20,:]
+                city=loader.city
+                del loader
+                seq_index=int(os.path.basename(seq_path).split('.')[0])
+
+                output_dict={'seq_path':seq_path,'seq_index':seq_index,'input':input_array,
+                            'output':output[index],'target':gt_traj[index],'city':city}
+                with open(f"{save_results_path}/{seq_index}.pkl", 'wb') as f:
+                    pickle.dump(output_dict,f) 
+
+            # input_tensor=np.array(input_tensor)
+
+
 
     def save_top_errors_accuracy(self,model_dir, model_path):
         subseq_len = args.subseq_len

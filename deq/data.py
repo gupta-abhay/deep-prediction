@@ -70,7 +70,7 @@ class Argoverse_Data(Dataset):
         self.mode_test=test
 
     def __len__(self):
-        return len(self.seq_paths)
+        return 200
 
     def old_transform(self,trajectory):
         def rotation_angle(x,y):
