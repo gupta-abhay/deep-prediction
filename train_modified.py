@@ -553,13 +553,13 @@ if __name__ == "__main__":
         argoverse_val=Argoverse_Data('data/val/data',cuda=args.cuda)
         argoverse_test = Argoverse_Data('data/test_obs/data',cuda=args.cuda,test=True)
         train_loader = DataLoader(argoverse_train, batch_size=args.batch_size,
-                            shuffle=True, num_workers=10)
+                            shuffle=True, num_workers=10, drop_last=True)
         val_loader = DataLoader(argoverse_val, batch_size=args.batch_size,
-                            shuffle=True, num_workers=10)
+                            shuffle=True, num_workers=10, drop_last=True)
         val_metric_loader = DataLoader(argoverse_val, batch_size=1,
                             shuffle=True, num_workers=1)
         test_loader = DataLoader(argoverse_test, batch_size=args.batch_size,
-                            shuffle=False, num_workers=10)
+                            shuffle=False, num_workers=10, drop_last=True)
     else:
         # raise ValueError('A very specific bad thing happened')
         raise ValueError(f"Dataset: {args.data} not present")
